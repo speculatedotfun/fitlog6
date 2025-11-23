@@ -1,0 +1,36 @@
+import { createBrowserClient } from '@supabase/ssr';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Supabase credentials are missing!');
+  console.error('Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local');
+  console.error('Get these from: https://app.supabase.com → Project Settings → API');
+  console.error('Current values:');
+  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl || 'undefined');
+  console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'undefined');
+  throw new Error('Supabase credentials are required');
+}
+
+// For client-side usage (components)
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  }
+});
+
+// For server-side usage (API routes, server components)
+export function createServerSupabaseClient() {
+  if (typeof window !== 'undefined') {
+    // Client-side - use browser client
+    return supabase;
+  }
+
+  // Server-side - this would need cookies, but for now return the browser client
+  // In a real app, you'd use createServerClient with cookies here
+  return supabase;
+}
