@@ -122,67 +122,67 @@ function TraineeDashboardContent() {
   // Show loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-background flex items-center justify-center" dir="rtl">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin mx-auto text-[#00ff88]" />
-          <p className="mt-4 text-gray-400 font-medium">טוען נתונים...</p>
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+          <p className="mt-4 text-muted-foreground font-medium">טוען נתונים...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1628] flex flex-col pb-20" dir="rtl">
+    <div className="min-h-screen bg-background flex flex-col pb-24" dir="rtl">
       {/* Header */}
-      <header className="bg-[#1a2332] border-b border-gray-800 sticky top-0 z-20">
+      <header className="bg-card border-b border-border sticky top-0 z-20 pt-safe">
         <div className="px-4 py-4 flex items-center justify-center">
           <h1 className="text-lg font-bold">
-            <span className="text-white">Universal </span>
-            <span className="text-[#00ff88]">FitLog</span>
+            <span className="text-foreground">Universal </span>
+            <span className="text-primary">FitLog</span>
           </h1>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 p-4 space-y-6">
-        <h2 className="text-2xl font-bold text-white">דשבורד מתאמן</h2>
+        <h2 className="text-2xl font-bold text-foreground">דשבורד מתאמן</h2>
 
         {/* Today's Workout Section */}
-        <Card className="bg-[#1a2332] border-gray-800">
+        <Card className="bg-card border-border shadow-md">
           <CardHeader>
-            <CardTitle className="text-white text-lg">האימון של היום:</CardTitle>
+            <CardTitle className="text-foreground text-lg">האימון של היום:</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {workoutPlan && currentRoutine ? (
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-white">{workoutPlan.name} {currentRoutine.letter}</p>
-                    <p className="text-sm text-gray-400 mt-1">{currentRoutine.name}</p>
+                    <p className="text-2xl font-bold text-foreground">{workoutPlan.name} {currentRoutine.letter}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{currentRoutine.name}</p>
                   </div>
-                  <div className="flex items-center gap-2 text-[#00ff88]">
+                  <div className="flex items-center gap-2 text-primary">
                     <Clock className="h-5 w-5" />
                     <span className="text-lg font-semibold">08:30</span>
                   </div>
                 </div>
                 <Link href="/trainee/workout">
-                  <Button className="w-full bg-[#00ff88] hover:bg-[#00e677] text-black font-bold h-12 text-lg">
+                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 text-lg shadow-sm">
                     התחל אימון
                   </Button>
                 </Link>
               </>
             ) : (
               <div className="text-center py-4">
-                <p className="text-gray-400">אין תוכנית אימונים פעילה</p>
+                <p className="text-muted-foreground">אין תוכנית אימונים פעילה</p>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Nutrition Log Section */}
-        <Card className="bg-[#1a2332] border-gray-800">
+        <Card className="bg-card border-border shadow-md">
           <CardHeader>
-            <CardTitle className="text-white text-lg">יומן תזונה</CardTitle>
+            <CardTitle className="text-foreground text-lg">יומן תזונה</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-6">
@@ -195,7 +195,7 @@ function TraineeDashboardContent() {
                       cy="64"
                       r="56"
                       fill="none"
-                      stroke="#1a2332"
+                      className="stroke-muted"
                       strokeWidth="12"
                     />
                     <circle
@@ -203,7 +203,7 @@ function TraineeDashboardContent() {
                       cy="64"
                       r="56"
                       fill="none"
-                      stroke="#00ff88"
+                      className="stroke-primary"
                       strokeWidth="12"
                       strokeDasharray={`${(nutritionData.fluids / 3000) * 352} 352`}
                       strokeDashoffset="0"
@@ -213,7 +213,7 @@ function TraineeDashboardContent() {
                       cy="64"
                       r="56"
                       fill="none"
-                      stroke="#3b82f6"
+                      className="stroke-blue-500"
                       strokeWidth="12"
                       strokeDasharray={`${(nutritionData.protein / 200) * 352} 352`}
                       strokeDashoffset={`-${(nutritionData.fluids / 3000) * 352}`}
@@ -223,7 +223,7 @@ function TraineeDashboardContent() {
                       cy="64"
                       r="56"
                       fill="none"
-                      stroke="#ef4444"
+                      className="stroke-red-500"
                       strokeWidth="12"
                       strokeDasharray={`${(nutritionData.fat / 100) * 352} 352`}
                       strokeDashoffset={`-${((nutritionData.fluids / 3000) + (nutritionData.protein / 200)) * 352}`}
@@ -233,7 +233,7 @@ function TraineeDashboardContent() {
                       cy="64"
                       r="56"
                       fill="none"
-                      stroke="#f97316"
+                      className="stroke-orange-500"
                       strokeWidth="12"
                       strokeDasharray={`${(nutritionData.carbs / 300) * 352} 352`}
                       strokeDashoffset={`-${((nutritionData.fluids / 3000) + (nutritionData.protein / 200) + (nutritionData.fat / 100)) * 352}`}
@@ -242,20 +242,20 @@ function TraineeDashboardContent() {
                 </div>
                 <div className="mr-4 space-y-2">
                   <div className="flex items-center gap-2 text-sm">
-                    <div className="w-3 h-3 rounded-full bg-[#00ff88]"></div>
-                    <span className="text-gray-300">נוזלים</span>
+                    <div className="w-3 h-3 rounded-full bg-primary"></div>
+                    <span className="text-muted-foreground">נוזלים</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-gray-300">חלבון</span>
+                    <span className="text-muted-foreground">חלבון</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span className="text-gray-300">שומן</span>
+                    <span className="text-muted-foreground">שומן</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                    <span className="text-gray-300">פחמימות</span>
+                    <span className="text-muted-foreground">פחמימות</span>
                   </div>
                 </div>
               </div>
@@ -269,7 +269,7 @@ function TraineeDashboardContent() {
                       cy="64"
                       r="56"
                       fill="none"
-                      stroke="#1a2332"
+                      className="stroke-muted"
                       strokeWidth="12"
                     />
                     <circle
@@ -277,15 +277,15 @@ function TraineeDashboardContent() {
                       cy="64"
                       r="56"
                       fill="none"
-                      stroke="#00ff88"
+                      className="stroke-primary"
                       strokeWidth="12"
                       strokeDasharray={`${(totalCalories / targetCalories) * 352} 352`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-white">{remainingCalories}</span>
-                    <span className="text-xs text-gray-400">קק"ל חסר</span>
+                    <span className="text-2xl font-bold text-foreground">{remainingCalories}</span>
+                    <span className="text-xs text-muted-foreground">קק"ל חסר</span>
                   </div>
                 </div>
               </div>
@@ -294,9 +294,9 @@ function TraineeDashboardContent() {
         </Card>
 
         {/* Body Data Section */}
-        <Card className="bg-[#1a2332] border-gray-800">
+        <Card className="bg-card border-border shadow-md">
           <CardHeader>
-            <CardTitle className="text-white text-lg">נתוני גוף</CardTitle>
+            <CardTitle className="text-foreground text-lg">נתוני גוף</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-6">
@@ -307,13 +307,12 @@ function TraineeDashboardContent() {
                     <polyline
                       points="0,40 10,35 20,30 30,25 40,20 50,18 60,15 70,12 80,10 90,8"
                       fill="none"
-                      stroke="#00ff88"
+                      className="stroke-primary"
                       strokeWidth="2"
                     />
                     <polygon
                       points="0,40 10,35 20,30 30,25 40,20 50,18 60,15 70,12 80,10 90,8 90,40 0,40"
-                      fill="#00ff88"
-                      fillOpacity="0.2"
+                      className="fill-primary/20"
                     />
                   </svg>
                 </div>
@@ -323,18 +322,18 @@ function TraineeDashboardContent() {
               <div className="flex flex-col justify-center">
                 {morningWeight ? (
                   <>
-                    <p className="text-sm text-gray-400 mb-1">משקל הבוקר:</p>
-                    <p className="text-2xl font-bold text-white">{morningWeight} ק"ג</p>
+                    <p className="text-sm text-muted-foreground mb-1">משקל הבוקר:</p>
+                    <p className="text-2xl font-bold text-foreground">{morningWeight} ק"ג</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-sm text-gray-400 mb-1">משקל הבוקר:</p>
-                    <p className="text-lg text-gray-500">אין נתונים</p>
+                    <p className="text-sm text-muted-foreground mb-1">משקל הבוקר:</p>
+                    <p className="text-lg text-muted-foreground">אין נתונים</p>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setShowWeightInput(true)}
-                      className="mt-2 border-gray-700 text-gray-300 hover:bg-gray-800"
+                      className="mt-2 border-input text-muted-foreground hover:bg-accent"
                     >
                       <Plus className="h-4 w-4 ml-1" />
                       הוסף משקל
@@ -347,28 +346,28 @@ function TraineeDashboardContent() {
         </Card>
 
         {/* New Achievements Section */}
-        <Card className="bg-[#1a2332] border-gray-800">
+        <Card className="bg-card border-border shadow-md">
           <CardHeader>
-            <CardTitle className="text-white text-lg">הישגים חדשים</CardTitle>
+            <CardTitle className="text-foreground text-lg">הישגים חדשים</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
               <div className="flex gap-2">
-                <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center shadow-sm">
                   <Medal className="h-8 w-8 text-white" />
                 </div>
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center shadow-sm">
                   <Trophy className="h-8 w-8 text-white" />
                 </div>
               </div>
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-2 text-sm">
-                  <Trophy className="h-4 w-4 text-[#00ff88]" />
-                  <span className="text-gray-300">בנץ' פרס</span>
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">בנץ' פרס</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <Trophy className="h-4 w-4 text-[#00ff88]" />
-                  <span className="text-gray-300">סקוואט</span>
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">סקוואט</span>
                 </div>
               </div>
             </div>
@@ -377,11 +376,11 @@ function TraineeDashboardContent() {
 
         {/* Weight Input Modal */}
         {showWeightInput && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="bg-[#1a2332] border-gray-800 w-full max-w-md">
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <Card className="bg-card border-border w-full max-w-md shadow-2xl">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-white">הוסף משקל</CardTitle>
+                  <CardTitle className="text-foreground">הוסף משקל</CardTitle>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -390,7 +389,7 @@ function TraineeDashboardContent() {
                       setBodyWeight("");
                       setWeightError(null);
                     }}
-                    className="text-gray-400 hover:text-white"
+                    className="text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -398,7 +397,7 @@ function TraineeDashboardContent() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {weightError && (
-                  <div className="p-3 bg-red-900/30 border border-red-800 rounded-md text-red-300 text-sm">
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive-foreground text-sm">
                     {weightError}
                   </div>
                 )}
@@ -411,14 +410,14 @@ function TraineeDashboardContent() {
                     setWeightError(null);
                   }}
                   placeholder="הזן משקל (ק״ג)"
-                  className="w-full px-4 py-4 text-2xl font-bold bg-[#0f1a2a] border-gray-700 text-white text-center"
+                  className="w-full px-4 py-8 text-3xl font-bold bg-secondary/50 border-input text-foreground text-center"
                   autoFocus
                   disabled={savingWeight}
                 />
                 <div className="flex gap-2">
                   <Button
                     onClick={handleWeightSubmit}
-                    className="flex-1 bg-[#00ff88] hover:bg-[#00e677] text-black font-semibold"
+                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12"
                     disabled={!bodyWeight || savingWeight}
                   >
                     {savingWeight ? (
@@ -440,7 +439,7 @@ function TraineeDashboardContent() {
                       setBodyWeight("");
                       setWeightError(null);
                     }}
-                    className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800"
+                    className="flex-1 border-input text-muted-foreground hover:bg-accent h-12"
                     disabled={savingWeight}
                   >
                     ביטול
@@ -453,27 +452,27 @@ function TraineeDashboardContent() {
       </main>
 
       {/* Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1a2332] border-t border-gray-800 px-4 py-2 pb-safe">
-        <div className="max-w-md mx-auto flex items-center justify-around">
-          <Link href="/trainee/dashboard" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Home className={`h-5 w-5 ${pathname === '/trainee/dashboard' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/dashboard' ? 'text-[#00ff88]' : 'text-gray-500'}`}>בית</span>
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border pb-safe z-30">
+        <div className="flex items-center justify-around">
+          <Link href="/trainee/dashboard" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Home className={`h-6 w-6 ${pathname === '/trainee/dashboard' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/dashboard' ? 'text-primary' : 'text-muted-foreground'}`}>בית</span>
           </Link>
-          <Link href="/trainee/history" className="flex flex-col items-center gap-1 py-2 px-4">
-            <BarChart3 className={`h-5 w-5 ${pathname === '/trainee/history' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/history' ? 'text-[#00ff88]' : 'text-gray-500'}`}>התקדמות</span>
+          <Link href="/trainee/history" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <BarChart3 className={`h-6 w-6 ${pathname === '/trainee/history' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/history' ? 'text-primary' : 'text-muted-foreground'}`}>התקדמות</span>
           </Link>
-          <Link href="/trainee/nutrition" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Apple className={`h-5 w-5 ${pathname === '/trainee/nutrition' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/nutrition' ? 'text-[#00ff88]' : 'text-gray-500'}`}>תזונה</span>
+          <Link href="/trainee/nutrition" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Apple className={`h-6 w-6 ${pathname === '/trainee/nutrition' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/nutrition' ? 'text-primary' : 'text-muted-foreground'}`}>תזונה</span>
           </Link>
-          <Link href="/trainee/workout" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Dumbbell className={`h-5 w-5 ${pathname?.startsWith('/trainee/workout') ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname?.startsWith('/trainee/workout') ? 'text-[#00ff88]' : 'text-gray-500'}`}>אימון</span>
+          <Link href="/trainee/workout" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Dumbbell className={`h-6 w-6 ${pathname?.startsWith('/trainee/workout') ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname?.startsWith('/trainee/workout') ? 'text-primary' : 'text-muted-foreground'}`}>אימון</span>
           </Link>
-          <Link href="/trainee/settings" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Settings className={`h-5 w-5 ${pathname === '/trainee/settings' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/settings' ? 'text-[#00ff88]' : 'text-gray-500'}`}>הגדרות</span>
+          <Link href="/trainee/settings" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Settings className={`h-6 w-6 ${pathname === '/trainee/settings' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/settings' ? 'text-primary' : 'text-muted-foreground'}`}>הגדרות</span>
           </Link>
         </div>
       </div>

@@ -27,6 +27,8 @@ interface SetData {
 interface ExerciseData extends Exercise {
   sets: SetData[];
   muscleGroup: string;
+  exerciseId: string;
+  previousPerformance?: { weight: number; reps: number }[];
 }
 
 function WorkoutSummaryContent() {
@@ -380,7 +382,7 @@ function WorkoutSummaryContent() {
                       
                       acc.offset += (percentage / 100) * circumference;
                       return acc;
-                    }, { elements: [] as JSX.Element[], offset: 0 }).elements}
+                    }, { elements: [] as React.ReactElement[], offset: 0 }).elements}
                   </svg>
                 </div>
 

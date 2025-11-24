@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { 
   Loader2, FileText,
   Users, Calendar, TrendingUp, AlertTriangle,
-  BarChart3
+  BarChart3, ChevronRight
 } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -76,10 +76,10 @@ function TrainerDashboardContent() {
   // Show loading if auth is still loading
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-background flex items-center justify-center" dir="rtl">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#00ff88]" />
-          <p className="mt-2 text-gray-400">טוען משתמש...</p>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-2 text-muted-foreground">טוען משתמש...</p>
         </div>
       </div>
     );
@@ -88,11 +88,11 @@ function TrainerDashboardContent() {
   // Show login prompt if not authenticated
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-background flex items-center justify-center" dir="rtl">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">נדרש התחברות</h1>
-          <p className="text-gray-400 mb-4">יש להתחבר כדי לגשת לדף זה</p>
-          <Link href="/auth/login" className="bg-[#00ff88] text-black px-4 py-2 rounded hover:bg-[#00e677] font-semibold">
+          <h1 className="text-2xl font-bold text-foreground mb-4">נדרש התחברות</h1>
+          <p className="text-muted-foreground mb-4">יש להתחבר כדי לגשת לדף זה</p>
+          <Link href="/auth/login" className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 font-semibold">
             התחברות
           </Link>
         </div>
@@ -276,57 +276,59 @@ function TrainerDashboardContent() {
 
 
   return (
-    <main className="p-4 lg:p-6 space-y-6">
-          <h2 className="text-3xl font-bold text-white">דשבורד מאמן</h2>
+    <main className="p-4 lg:p-6 space-y-6 pb-24 lg:pb-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-3xl font-bold text-foreground">דשבורד מאמן</h2>
+          </div>
 
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-[#1a2332] border-gray-800">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="bg-card border-border shadow-sm">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">מתאמנים פעילים</p>
-                    <p className="text-3xl font-bold text-white">{stats.activeTrainees}</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">מתאמנים פעילים</p>
+                    <Users className="h-5 w-5 text-primary" />
                   </div>
-                  <Users className="h-10 w-10 text-[#00ff88]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.activeTrainees}</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-[#1a2332] border-gray-800">
+            <Card className="bg-card border-border shadow-sm">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">אימונים היום</p>
-                    <p className="text-3xl font-bold text-white">
-                      {stats.workoutsToday.completed}/{stats.workoutsToday.total}
-                    </p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">אימונים היום</p>
+                    <Calendar className="h-5 w-5 text-blue-500" />
                   </div>
-                  <Calendar className="h-10 w-10 text-blue-400" />
+                  <p className="text-3xl font-bold text-foreground">
+                    {stats.workoutsToday.completed}/{stats.workoutsToday.total}
+                  </p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-[#1a2332] border-gray-800">
+            <Card className="bg-card border-border shadow-sm">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">ציות ממוצע</p>
-                    <p className="text-3xl font-bold text-white">{stats.averageCompliance}%</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">ציות ממוצע</p>
+                    <TrendingUp className="h-5 w-5 text-green-500" />
                   </div>
-                  <TrendingUp className="h-10 w-10 text-green-400" />
+                  <p className="text-3xl font-bold text-foreground">{stats.averageCompliance}%</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-[#1a2332] border-gray-800">
+            <Card className="bg-card border-border shadow-sm">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">התראות</p>
-                    <p className="text-3xl font-bold text-red-400">{stats.alerts}</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">התראות</p>
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
                   </div>
-                  <AlertTriangle className="h-10 w-10 text-red-400" />
+                  <p className="text-3xl font-bold text-destructive">{stats.alerts}</p>
                 </div>
               </CardContent>
             </Card>
@@ -334,88 +336,103 @@ function TrainerDashboardContent() {
 
           {/* Command Center */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="bg-[#1a2332] border-gray-800">
+            <Card className="bg-card border-border shadow-sm flex flex-col">
               <CardHeader>
-                <CardTitle className="text-white">מרכז פיקוד</CardTitle>
+                <CardTitle className="text-foreground">פעילות אחרונה</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-400 mb-3">שם מאמן</h3>
-                  {loading ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-                  ) : traineesWithStatus.length > 0 ? (
-                    <div className="space-y-3">
-                      {traineesWithStatus.slice(0, 2).map((trainee) => (
-                        <div key={trainee.id} className="bg-[#0f1a2a] rounded-lg p-4 border border-gray-800">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="font-semibold text-white">{trainee.name}</p>
-                            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              trainee.status === 'active' 
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                                : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                            }`}>
-                              {trainee.status === 'active' ? 'פעיל' : 'לא פעיל'}
+              <CardContent className="space-y-4 flex-1">
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : traineesWithStatus.length > 0 ? (
+                  <div className="space-y-3">
+                    {traineesWithStatus.slice(0, 3).map((trainee) => (
+                      <Link 
+                        href={`/trainer/trainee/${trainee.id}`} 
+                        key={trainee.id}
+                        className="block bg-accent/30 rounded-lg p-4 border border-border hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                              {trainee.name.charAt(0)}
                             </div>
+                            <p className="font-semibold text-foreground">{trainee.name}</p>
                           </div>
-                          <p className="text-sm text-gray-400 mb-2">{trainee.planName}</p>
-                          <p className="text-xs text-gray-500">{formatDate(trainee.lastWorkout)}</p>
-                          <div className="mt-3 flex items-center gap-2">
-                            <div className={`px-3 py-1 rounded text-xs font-medium ${
-                              trainee.compliance >= 90 
-                                ? 'bg-green-500/20 text-green-400' 
-                                : trainee.compliance >= 70
-                                ? 'bg-yellow-500/20 text-yellow-400'
-                                : 'bg-red-500/20 text-red-400'
-                            }`}>
-                              ציות: {trainee.compliance}%
-                            </div>
-                            <Link href={`/trainer/workout-plans/${trainee.id}/edit`} className="mr-auto">
-                              <Button size="sm" className="bg-[#1a2332] border border-gray-700 text-gray-300 hover:bg-gray-800 text-xs">
-                                ערוך תוכנית
-                              </Button>
-                            </Link>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex justify-between items-end">
+                          <div>
+                            <p className="text-sm text-muted-foreground">{trainee.planName}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              אימון אחרון: {formatDate(trainee.lastWorkout)}
+                            </p>
+                          </div>
+                          <div className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            trainee.compliance >= 90 
+                              ? 'bg-green-500/20 text-green-500' 
+                              : trainee.compliance >= 70
+                              ? 'bg-yellow-500/20 text-yellow-500'
+                              : 'bg-destructive/20 text-destructive'
+                          }`}>
+                            {trainee.compliance}% ציות
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-400">אין מתאמנים</p>
-                  )}
-                </div>
+                      </Link>
+                    ))}
+                    <Link href="/trainer/trainees" className="block text-center text-sm text-primary hover:underline pt-2">
+                      צפה בכל המתאמנים
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                    <p className="text-muted-foreground mb-4">אין מתאמנים פעילים</p>
+                    <Link href="/trainer/trainees">
+                      <Button variant="outline">הוסף מתאמן חדש</Button>
+                    </Link>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            <Card className="bg-[#1a2332] border-gray-800">
+            <Card className="bg-card border-border shadow-sm">
               <CardHeader>
-                <CardTitle className="text-white">דוחות מהירים</CardTitle>
+                <CardTitle className="text-foreground">דוחות מהירים</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button 
                   onClick={exportWeeklyReport}
-                  className="w-full bg-[#0f1a2a] hover:bg-[#1a2332] text-white border border-gray-800 justify-start h-auto py-4"
+                  className="w-full bg-accent/30 hover:bg-accent text-foreground border border-border justify-start h-auto py-4 group"
                 >
-                  <FileText className="h-5 w-5 ml-3" />
+                  <div className="bg-primary/10 p-2 rounded-md ml-3 group-hover:bg-primary/20 transition-colors">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
                   <div className="text-right flex-1">
                     <p className="font-semibold">דו"ח שבועי</p>
-                    <p className="text-xs text-gray-400">ייצא דוח שבועי של כל המתאמנים</p>
+                    <p className="text-xs text-muted-foreground">ייצא דוח שבועי של כל המתאמנים</p>
                   </div>
                 </Button>
                 <Button 
                   onClick={exportPerformanceReport}
-                  className="w-full bg-[#0f1a2a] hover:bg-[#1a2332] text-white border border-gray-800 justify-start h-auto py-4"
+                  className="w-full bg-accent/30 hover:bg-accent text-foreground border border-border justify-start h-auto py-4 group"
                 >
-                  <BarChart3 className="h-5 w-5 ml-3" />
+                  <div className="bg-blue-500/10 p-2 rounded-md ml-3 group-hover:bg-blue-500/20 transition-colors">
+                    <BarChart3 className="h-5 w-5 text-blue-500" />
+                  </div>
                   <div className="text-right flex-1">
                     <p className="font-semibold">ביצועים</p>
-                    <p className="text-xs text-gray-400">ייצא דוח ביצועים מפורט</p>
+                    <p className="text-xs text-muted-foreground">ייצא דוח ביצועים מפורט</p>
                   </div>
                 </Button>
                 <Link href="/trainer/reports" className="block">
-                  <Button className="w-full bg-[#0f1a2a] hover:bg-[#1a2332] text-white border border-gray-800 justify-start h-auto py-4">
-                    <FileText className="h-5 w-5 ml-3" />
+                  <Button className="w-full bg-accent/30 hover:bg-accent text-foreground border border-border justify-start h-auto py-4 group">
+                    <div className="bg-purple-500/10 p-2 rounded-md ml-3 group-hover:bg-purple-500/20 transition-colors">
+                      <FileText className="h-5 w-5 text-purple-500" />
+                    </div>
                     <div className="text-right flex-1">
                       <p className="font-semibold">דוחות מפורטים</p>
-                      <p className="text-xs text-gray-400">עבור לדף הדוחות המלא</p>
+                      <p className="text-xs text-muted-foreground">עבור לדף הדוחות המלא</p>
                     </div>
                   </Button>
                 </Link>
@@ -423,58 +440,70 @@ function TrainerDashboardContent() {
             </Card>
           </div>
 
-          {/* Workout Status Table */}
-          <Card className="bg-[#1a2332] border-gray-800">
+          {/* Workout Status Table - Only visible on larger screens */}
+          <Card className="bg-card border-border shadow-sm hidden lg:block">
             <CardHeader>
-              <CardTitle className="text-white">סטטוס אימונים</CardTitle>
+              <CardTitle className="text-foreground">סטטוס אימונים</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-800">
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-400">תוכנית</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-400">סטטוס</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-400">אימון אחרון</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-400">ציות</th>
+                    <tr className="border-b border-border">
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">שם</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">תוכנית</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">סטטוס</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">אימון אחרון</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">ציות</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={4} className="text-center py-8">
-                          <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                        <td colSpan={6} className="text-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                         </td>
                       </tr>
                     ) : traineesWithStatus.length > 0 ? (
                       traineesWithStatus.map((trainee) => (
-                        <tr key={trainee.id} className="border-b border-gray-800 hover:bg-[#0f1a2a] transition-colors">
+                        <tr key={trainee.id} className="border-b border-border hover:bg-accent/30 transition-colors group">
+                          <td className="py-3 px-4 font-medium text-foreground">{trainee.name}</td>
+                          <td className="py-3 px-4 text-muted-foreground">{trainee.planName}</td>
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-white">{trainee.planName}</span>
-                              <Link href={`/trainer/workout-plans/${trainee.id}/edit`}>
-                                <Button size="sm" variant="outline" className="h-7 text-xs border-gray-700 text-gray-300 hover:bg-gray-800">
-                                  ערוך
-                                </Button>
-                              </Link>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                               trainee.status === 'active' 
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
+                                : 'bg-destructive/10 text-destructive border border-destructive/20'
                             }`}>
                               {trainee.status === 'active' ? 'פעיל' : 'לא פעיל'}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-gray-400">{formatDate(trainee.lastWorkout)}</td>
-                          <td className="py-3 px-4 text-white font-semibold">{trainee.compliance}%</td>
+                          <td className="py-3 px-4 text-muted-foreground">{formatDate(trainee.lastWorkout)}</td>
+                          <td className="py-3 px-4">
+                            <div className="w-full bg-secondary rounded-full h-2 max-w-[100px]">
+                              <div 
+                                className={`h-2 rounded-full ${
+                                  trainee.compliance >= 90 ? 'bg-green-500' : 
+                                  trainee.compliance >= 70 ? 'bg-yellow-500' : 'bg-destructive'
+                                }`} 
+                                style={{ width: `${trainee.compliance}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground mt-1 block">{trainee.compliance}%</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Link href={`/trainer/trainee/${trainee.id}`}>
+                              <Button size="sm" variant="ghost" className="h-8 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                                פרטים
+                              </Button>
+                            </Link>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="text-center py-8 text-gray-400">
+                        <td colSpan={6} className="text-center py-8 text-muted-foreground">
                           אין נתונים
                         </td>
                       </tr>
@@ -484,19 +513,6 @@ function TrainerDashboardContent() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Monthly Progress Graph - Placeholder */}
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardHeader>
-              <CardTitle className="text-white">התקדמות לקוחות חודשית</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex items-center justify-center bg-[#0f1a2a] rounded-lg border border-gray-800">
-                <p className="text-gray-400">גרף התקדמות יתווסף בהמשך</p>
-              </div>
-            </CardContent>
-          </Card>
-
     </main>
   );
 }

@@ -89,6 +89,7 @@ function WorkoutPlanEditorContent() {
           name: `תוכנית אימונים - ${traineeData?.name || 'מתאמן'}`,
           is_active: true,
           start_date: new Date().toISOString().split('T')[0],
+          end_date: null,
           weekly_target_workouts: 5,
         });
       }

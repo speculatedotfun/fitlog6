@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowLeft, Calculator, Info, Play, Home, BarChart3, Users, Target, Settings, Apple, Dumbbell, ChevronDown } from "lucide-react";
+import { Loader2, ArrowLeft, Calculator, Info, Play, Home, BarChart3, Users, Target, Settings, Apple, Dumbbell, ChevronDown, CheckCircle2, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -267,10 +267,10 @@ function WorkoutPageContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-background flex items-center justify-center" dir="rtl">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#00ff88]" />
-          <p className="mt-2 text-gray-400">טוען...</p>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-2 text-muted-foreground">טוען...</p>
         </div>
       </div>
     );
@@ -278,11 +278,11 @@ function WorkoutPageContent() {
 
   if (!workoutPlan || routines.length === 0 || !selectedRoutine || exercises.length === 0) {
     return (
-      <div className="min-h-screen bg-[#0a1628]" dir="rtl">
-        <div className="bg-[#1a2332] text-white p-4 sticky top-0 z-10 border-b border-gray-800">
+      <div className="min-h-screen bg-background" dir="rtl">
+        <div className="bg-card text-card-foreground p-4 sticky top-0 z-10 border-b border-border pt-safe">
           <div className="max-w-2xl mx-auto flex items-center">
             <Link href="/trainee/dashboard">
-              <Button variant="ghost" size="icon" className="text-white hover:bg-gray-800">
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:bg-accent hover:text-foreground">
                 <ArrowLeft className="h-6 w-6" />
               </Button>
             </Link>
@@ -294,9 +294,9 @@ function WorkoutPageContent() {
         </div>
 
         <div className="max-w-2xl mx-auto p-4">
-          <Card className="bg-[#1a2332] border-gray-800">
+          <Card className="bg-card border-border">
             <CardContent className="pt-6 text-center">
-              <p className="text-gray-400">המאמן שלך עדיין לא יצר תוכנית אימונים</p>
+              <p className="text-muted-foreground">המאמן שלך עדיין לא יצר תוכנית אימונים</p>
             </CardContent>
           </Card>
         </div>
@@ -306,12 +306,12 @@ function WorkoutPageContent() {
 
 
   return (
-    <div className="min-h-screen bg-[#0a1628] pb-20" dir="rtl">
+    <div className="min-h-screen bg-background pb-24" dir="rtl">
       {/* Header */}
-      <div className="bg-[#1a2332] text-white p-4 sticky top-0 z-10 border-b border-gray-800">
-        <div className="max-w-2xl mx-auto flex items-center">
+      <div className="bg-card text-card-foreground p-4 sticky top-0 z-10 border-b border-border shadow-sm pt-safe">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
           <Link href="/trainee/dashboard">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-gray-800">
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:bg-accent hover:text-foreground">
               <ArrowLeft className="h-6 w-6" />
             </Button>
           </Link>
@@ -319,13 +319,19 @@ function WorkoutPageContent() {
             <Button
               variant="ghost"
               onClick={() => setShowRoutineSelector(!showRoutineSelector)}
-              className="text-white hover:bg-gray-800"
+              className="text-foreground hover:bg-accent h-auto py-1"
             >
-              <h1 className="text-xl font-bold">
-                {workoutPlan.name} {selectedRoutine.letter}
-                {selectedRoutine.name && ` - ${selectedRoutine.name}`}
-              </h1>
-              <ChevronDown className="h-5 w-5 mr-2" />
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-bold">
+                    {workoutPlan.name} {selectedRoutine.letter}
+                  </h1>
+                  <ChevronDown className="h-4 w-4" />
+                </div>
+                {selectedRoutine.name && (
+                  <span className="text-xs text-muted-foreground font-normal">{selectedRoutine.name}</span>
+                )}
+              </div>
             </Button>
           </div>
           <div className="w-10" />
@@ -334,25 +340,25 @@ function WorkoutPageContent() {
 
       {/* Routine Selector Dropdown */}
       {showRoutineSelector && (
-        <div className="bg-[#1a2332] border-b border-gray-800 sticky top-[73px] z-10">
+        <div className="bg-card border-b border-border sticky top-[73px] z-10 shadow-lg animate-in slide-in-from-top-2">
           <div className="max-w-2xl mx-auto p-4">
             <div className="space-y-2">
-              <p className="text-sm text-gray-400 mb-3">בחר רוטינה:</p>
+              <p className="text-sm text-muted-foreground mb-3">בחר רוטינה:</p>
               {routines.map((routine) => (
                 <Button
                   key={routine.id}
                   variant={selectedRoutine?.id === routine.id ? "default" : "outline"}
                   onClick={() => handleRoutineChange(routine)}
-                  className={`w-full justify-start ${
+                  className={`w-full justify-start h-12 ${
                     selectedRoutine?.id === routine.id
-                      ? "bg-[#00ff88] hover:bg-[#00e677] text-black"
-                      : "bg-[#0f1a2a] border-gray-700 text-white hover:bg-gray-800"
+                      ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                      : "bg-background border-input text-foreground hover:bg-accent"
                   }`}
                 >
                   <span className="font-bold text-lg ml-2">{routine.letter}</span>
                   {routine.name && <span className="text-sm"> - {routine.name}</span>}
                   {selectedRoutine?.id === routine.id && (
-                    <span className="mr-auto text-xs">(נבחר)</span>
+                    <span className="mr-auto text-xs font-semibold">(נבחר)</span>
                   )}
                 </Button>
               ))}
@@ -361,7 +367,7 @@ function WorkoutPageContent() {
         </div>
       )}
 
-      <div className="max-w-2xl mx-auto p-4 space-y-6">
+      <div className="max-w-2xl mx-auto p-4 space-y-8">
         {/* All Exercises */}
         {exercises.map((exercise, index) => {
           const sets = exercisesSets[exercise.id] || [];
@@ -369,18 +375,30 @@ function WorkoutPageContent() {
           
           return (
             <div key={exercise.id} className="space-y-4">
-              {/* Exercise Name */}
-              <div>
-                <h2 className="text-lg text-gray-300 mb-2">תרגיל: {exercise.name}</h2>
+              {/* Exercise Header */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <span className="bg-primary/20 text-primary text-sm font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                    {index + 1}
+                  </span>
+                  {exercise.name}
+                </h2>
+                {exercise.specialInstructions && (
+                  <Button variant="ghost" size="sm" className="text-primary h-8 px-2" onClick={() => setShowInstructions(true)}>
+                    <Info className="h-4 w-4 ml-1" />
+                    הוראות
+                  </Button>
+                )}
               </div>
 
               {/* Video/Image */}
-              <div className="relative w-full aspect-video bg-[#1a2332] rounded-lg border border-gray-800 overflow-hidden">
+              <div className="relative w-full aspect-video bg-black/50 rounded-xl border border-border overflow-hidden shadow-sm">
                 {exercise.videoUrl ? (
                   <video
                     src={exercise.videoUrl}
                     className="w-full h-full object-cover"
                     controls
+                    playsInline
                   />
                 ) : exercise.imageUrl ? (
                   <img
@@ -391,76 +409,92 @@ function WorkoutPageContent() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="text-center">
-                      <Play className="h-16 w-16 text-gray-600 mx-auto mb-2" />
-                      <p className="text-gray-500">אין וידאו זמין</p>
+                      <Play className="h-12 w-12 text-muted-foreground/50 mx-auto mb-2" />
+                      <p className="text-muted-foreground/70 text-sm">אין מדיה זמינה</p>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Set 1 */}
-              <Card className="bg-[#1a2332] border-gray-800">
-                <CardHeader>
-                  <CardTitle className="text-white text-xl">סט 1</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <Card className="bg-card border-border shadow-md overflow-hidden">
+                <div className="bg-accent/30 p-3 border-b border-border flex justify-between items-center">
+                  <span className="font-semibold text-foreground">סט עבודה</span>
+                  <div className="flex gap-4 text-sm text-muted-foreground">
+                    <span>מטרה: {exercise.targetSets} סטים</span>
+                    <span>{exercise.targetReps} חזרות</span>
+                  </div>
+                </div>
+                <CardContent className="p-4 space-y-6">
                   {/* Weight and Reps */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm text-gray-400 block mb-2">חזרות</label>
-                      <Input
-                        type="number"
-                        value={set.reps}
-                        onChange={(e) => updateSet(exercise.id, "reps", e.target.value)}
-                        placeholder={exercise.previousPerformance?.[0]?.reps.toString() || "10"}
-                        className="bg-[#0f1a2a] border-gray-700 text-white text-center text-lg font-semibold h-12"
-                      />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground block text-center">חזרות</label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          value={set.reps}
+                          onChange={(e) => updateSet(exercise.id, "reps", e.target.value)}
+                          placeholder={exercise.previousPerformance?.[0]?.reps.toString() || "10"}
+                          className="bg-background/50 border-input text-foreground text-center text-2xl font-bold h-16 rounded-xl focus:ring-primary/50"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-sm text-gray-400 block mb-2">משקל (ק"ג)</label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={set.weight}
-                        onChange={(e) => updateSet(exercise.id, "weight", e.target.value)}
-                        placeholder={exercise.previousPerformance?.[0]?.weight.toString() || "80"}
-                        className="bg-[#0f1a2a] border-gray-700 text-white text-center text-lg font-semibold h-12"
-                      />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground block text-center">משקל (ק"ג)</label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.5"
+                          inputMode="decimal"
+                          value={set.weight}
+                          onChange={(e) => updateSet(exercise.id, "weight", e.target.value)}
+                          placeholder={exercise.previousPerformance?.[0]?.weight.toString() || "80"}
+                          className="bg-background/50 border-input text-foreground text-center text-2xl font-bold h-16 rounded-xl focus:ring-primary/50"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   {/* RIR Slider */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-gray-400">RIR:</label>
-                      <span className="text-lg font-bold text-[#00ff88]">{set.rir}</span>
+                  <div className="bg-background/30 p-4 rounded-xl border border-border/50">
+                    <div className="flex items-center justify-between mb-4">
+                      <label className="text-sm font-medium text-muted-foreground">קרבה לכשל (RIR):</label>
+                      <div className="bg-primary/20 text-primary px-3 py-1 rounded-full text-lg font-bold min-w-[3rem] text-center">
+                        {set.rir}
+                      </div>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="10"
-                      step="0.5"
-                      value={set.rir}
-                      onChange={(e) => updateSet(exercise.id, "rir", e.target.value)}
-                      className="w-full h-2 bg-[#0f1a2a] rounded-lg appearance-none cursor-pointer slider"
-                      style={{
-                        background: `linear-gradient(to right, #00ff88 0%, #00ff88 ${(parseFloat(set.rir) / 10) * 100}%, #0f1a2a ${(parseFloat(set.rir) / 10) * 100}%, #0f1a2a 100%)`
-                      }}
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>0</span>
-                      <span>2.5</span>
-                      <span>5</span>
-                      <span>7.5</span>
-                      <span>10</span>
+                    <div className="px-2">
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="0.5"
+                        value={set.rir}
+                        onChange={(e) => updateSet(exercise.id, "rir", e.target.value)}
+                        className="w-full h-3 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                        style={{
+                          background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(parseFloat(set.rir) / 5) * 100}%, hsl(var(--secondary)) ${(parseFloat(set.rir) / 5) * 100}%, hsl(var(--secondary)) 100%)`
+                        }}
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground mt-2 font-medium">
+                        <span>0 (כשל)</span>
+                        <span>1</span>
+                        <span>2</span>
+                        <span>3</span>
+                        <span>4</span>
+                        <span>5 (קל)</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Previous Best */}
                   {exercise.previousPerformance?.[0] && (
-                    <div className="bg-[#0f1a2a] rounded-lg p-3 border border-gray-800">
-                      <p className="text-sm text-gray-400">
-                        הכי טוב קודם: {exercise.previousPerformance[0].reps} חזרות, {exercise.previousPerformance[0].weight} ק"ג
+                    <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20 flex items-center gap-3">
+                      <Trophy className="h-5 w-5 text-blue-400 flex-shrink-0" />
+                      <p className="text-sm text-blue-100">
+                        שיא אישי: <span className="font-bold">{exercise.previousPerformance[0].weight} ק"ג</span> ל-<span className="font-bold">{exercise.previousPerformance[0].reps} חזרות</span>
                       </p>
                     </div>
                   )}
@@ -471,65 +505,80 @@ function WorkoutPageContent() {
         })}
 
         {/* Action Button */}
-        <Button
-          className="w-full bg-[#00ff88] hover:bg-[#00e677] text-black font-bold h-14 text-lg"
-          onClick={handleFinishWorkout}
-          disabled={saving}
-        >
-          {saving ? (
-            <>
-              <Loader2 className="h-5 w-5 ml-2 animate-spin" />
-              שומר...
-            </>
-          ) : (
-            "סיים אימון"
-          )}
-        </Button>
+        <div className="sticky bottom-24 z-10 pt-4">
+          <Button
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-14 text-xl shadow-xl rounded-xl transition-all active:scale-[0.98]"
+            onClick={handleFinishWorkout}
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-6 w-6 ml-2 animate-spin" />
+                שומר נתונים...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-6 w-6 ml-2" />
+                סיים אימון
+              </>
+            )}
+          </Button>
+        </div>
 
       </div>
 
       {/* Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1a2332] border-t border-gray-800 px-4 py-2 pb-safe">
-        <div className="max-w-md mx-auto flex items-center justify-around">
-          <Link href="/trainee/dashboard" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Home className={`h-5 w-5 ${pathname === '/trainee/dashboard' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/dashboard' ? 'text-[#00ff88]' : 'text-gray-500'}`}>בית</span>
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border pb-safe z-30">
+        <div className="flex items-center justify-around">
+          <Link href="/trainee/dashboard" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Home className={`h-6 w-6 ${pathname === '/trainee/dashboard' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/dashboard' ? 'text-primary' : 'text-muted-foreground'}`}>בית</span>
           </Link>
-          <Link href="/trainee/history" className="flex flex-col items-center gap-1 py-2 px-4">
-            <BarChart3 className={`h-5 w-5 ${pathname === '/trainee/history' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/history' ? 'text-[#00ff88]' : 'text-gray-500'}`}>התקדמות</span>
+          <Link href="/trainee/history" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <BarChart3 className={`h-6 w-6 ${pathname === '/trainee/history' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/history' ? 'text-primary' : 'text-muted-foreground'}`}>התקדמות</span>
           </Link>
-          <Link href="/trainee/nutrition" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Apple className={`h-5 w-5 ${pathname === '/trainee/nutrition' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/nutrition' ? 'text-[#00ff88]' : 'text-gray-500'}`}>תזונה</span>
+          <Link href="/trainee/nutrition" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Apple className={`h-6 w-6 ${pathname === '/trainee/nutrition' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/nutrition' ? 'text-primary' : 'text-muted-foreground'}`}>תזונה</span>
           </Link>
-          <Link href="/trainee/workout" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Dumbbell className={`h-5 w-5 ${pathname?.startsWith('/trainee/workout') ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname?.startsWith('/trainee/workout') ? 'text-[#00ff88]' : 'text-gray-500'}`}>אימון</span>
+          <Link href="/trainee/workout" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Dumbbell className={`h-6 w-6 ${pathname?.startsWith('/trainee/workout') ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname?.startsWith('/trainee/workout') ? 'text-primary' : 'text-muted-foreground'}`}>אימון</span>
           </Link>
-          <Link href="/trainee/settings" className="flex flex-col items-center gap-1 py-2 px-4">
-            <Settings className={`h-5 w-5 ${pathname === '/trainee/settings' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
-            <span className={`text-xs ${pathname === '/trainee/settings' ? 'text-[#00ff88]' : 'text-gray-500'}`}>הגדרות</span>
+          <Link href="/trainee/settings" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Settings className={`h-6 w-6 ${pathname === '/trainee/settings' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/settings' ? 'text-primary' : 'text-muted-foreground'}`}>הגדרות</span>
           </Link>
         </div>
       </div>
 
       {/* Instructions Modal */}
       {showInstructions && exercises.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowInstructions(false)}>
-          <Card className="bg-[#1a2332] border-gray-800 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <CardHeader>
-              <CardTitle className="text-white">הוראות תרגילים</CardTitle>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowInstructions(false)}>
+          <Card className="bg-card border-border w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="sticky top-0 bg-card z-10 border-b border-border">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-foreground">הוראות והדגשים</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setShowInstructions(false)}>
+                  <ChevronDown className="h-5 w-5" />
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6 pt-6">
               {exercises.map((exercise) => (
                 exercise.specialInstructions && (
-                  <div key={exercise.id} className="border-b border-gray-800 pb-4 last:border-0">
-                    <h3 className="text-white font-semibold mb-2">{exercise.name}</h3>
-                    <p className="text-gray-300 whitespace-pre-line text-sm">{exercise.specialInstructions}</p>
+                  <div key={exercise.id} className="border-b border-border pb-4 last:border-0">
+                    <h3 className="text-primary font-bold mb-2 text-lg">{exercise.name}</h3>
+                    <div className="bg-accent/30 p-3 rounded-lg text-foreground/90 whitespace-pre-line text-sm leading-relaxed">
+                      {exercise.specialInstructions}
+                    </div>
                   </div>
                 )
               ))}
+              {exercises.every(e => !e.specialInstructions) && (
+                <p className="text-center text-muted-foreground py-8">אין הוראות מיוחדות לאימון זה</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -537,35 +586,27 @@ function WorkoutPageContent() {
 
       {/* Calculator Modal */}
       {showCalculator && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCalculator(false)}>
-          <Card className="bg-[#1a2332] border-gray-800 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowCalculator(false)}>
+          <Card className="bg-card border-border w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <CardHeader>
-              <CardTitle className="text-white">מחשבון משקולות</CardTitle>
+              <CardTitle className="text-foreground">מחשבון משקולות</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-400">מחשבון משקולות יתווסף בהמשך</p>
+              <p className="text-muted-foreground text-center py-8">מחשבון צלחות יתווסף בהמשך</p>
             </CardContent>
           </Card>
         </div>
       )}
 
       {/* Floating Action Buttons */}
-      <div className="fixed bottom-20 left-4 right-4 flex justify-between max-w-md mx-auto z-40">
+      <div className="fixed bottom-24 left-4 flex flex-col gap-3 z-20">
         <Button
           variant="outline"
           size="icon"
-          className="bg-[#1a2332] border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white rounded-full w-12 h-12"
+          className="bg-card/90 backdrop-blur border-border text-muted-foreground hover:bg-primary hover:text-primary-foreground rounded-full w-12 h-12 shadow-lg"
           onClick={() => setShowCalculator(!showCalculator)}
         >
           <Calculator className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="bg-[#1a2332] border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white rounded-full w-12 h-12"
-          onClick={() => setShowInstructions(!showInstructions)}
-        >
-          <Info className="h-5 w-5" />
         </Button>
       </div>
     </div>
