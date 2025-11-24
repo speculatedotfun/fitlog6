@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     }
 
     // 4. Create auth user
-    const { data: authData, error: authError: signUpError } = await supabase.auth.signUp({
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
