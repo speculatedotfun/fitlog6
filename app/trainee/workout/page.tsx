@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Calculator, Info, Play, Home, BarChart3, Users, Target, Settings, Apple, Dumbbell, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -32,12 +33,16 @@ interface Exercise {
   targetReps: string;
   restTime: number;
   exerciseId: string;
-  rirTarget: number; // RIR target from trainer (0-4)
+  rirTarget: number;
   previousPerformance?: { weight: number; reps: number }[];
+  videoUrl?: string;
+  imageUrl?: string;
+  muscleGroup?: string;
 }
 
 function WorkoutPageContent() {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [workoutPlan, setWorkoutPlan] = useState<any>(null);
@@ -45,6 +50,10 @@ function WorkoutPageContent() {
   const [selectedRoutine, setSelectedRoutine] = useState<RoutineWithExercises | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exercisesSets, setExercisesSets] = useState<Record<string, SetData[]>>({});
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [showRoutineSelector, setShowRoutineSelector] = useState(false);
+  const [startTime] = useState(new Date().toISOString());
 
   useEffect(() => {
     if (user?.id) {
@@ -53,11 +62,11 @@ function WorkoutPageContent() {
   }, [user?.id]);
 
   useEffect(() => {
-    // Initialize sets for all exercises when exercises are loaded
     if (exercises.length > 0) {
       initializeAllSets();
     }
   }, [exercises]);
+
 
   const loadWorkoutData = async () => {
     if (!user?.id) return;
@@ -65,7 +74,6 @@ function WorkoutPageContent() {
     try {
       setLoading(true);
 
-      // Load active workout plan
       const plan = await getActiveWorkoutPlan(user.id);
       setWorkoutPlan(plan);
 
@@ -74,10 +82,8 @@ function WorkoutPageContent() {
         return;
       }
 
-      // Load routines with exercises
       const routinesData = await getRoutinesWithExercises(plan.id);
       
-      // Sort routines by letter (A, B, C, D, E)
       const sortedRoutines = [...routinesData].sort((a, b) => {
         const letterOrder = { 'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5 };
         return (letterOrder[a.letter] || 99) - (letterOrder[b.letter] || 99);
@@ -86,7 +92,6 @@ function WorkoutPageContent() {
       setRoutines(sortedRoutines);
 
       if (sortedRoutines.length > 0) {
-        // Determine which routine to show
         const logs = await getWorkoutLogs(user.id, 10);
         const lastLog = logs.find(log => log.date === new Date().toISOString().split('T')[0]);
         
@@ -114,11 +119,9 @@ function WorkoutPageContent() {
 
   const loadExercisesWithHistory = async (routine: RoutineWithExercises, traineeId: string) => {
     try {
-      // Load previous workout logs to get performance history
       const allLogs = await getWorkoutLogs(traineeId, 50);
       
       const exercisesWithHistory: Exercise[] = routine.routine_exercises.map((re) => {
-        // Find all previous performances for this exercise
         const exerciseLogs = allLogs
           .flatMap(log => log.set_logs || [])
           .filter(sl => sl.exercise_id === re.exercise_id)
@@ -126,11 +129,10 @@ function WorkoutPageContent() {
             weight: sl.weight_kg,
             reps: sl.reps,
           }))
-          .sort((a, b) => b.weight - a.weight || b.reps - a.reps); // Sort by weight desc, then reps desc
+          .sort((a, b) => b.weight - a.weight || b.reps - a.reps);
 
-        // Get only the heaviest set (first one after sorting)
         const previousPerformance = exerciseLogs.length > 0
-          ? [exerciseLogs[0]] // Take only the heaviest set
+          ? [exerciseLogs[0]]
           : undefined;
 
         return {
@@ -141,8 +143,10 @@ function WorkoutPageContent() {
           targetReps: `${re.target_reps_min}-${re.target_reps_max}`,
           restTime: re.rest_time_seconds || 180,
           exerciseId: re.exercise_id,
-          rirTarget: re.rir_target !== null && re.rir_target !== undefined ? re.rir_target : 1, // RIR target from trainer (0 is valid!)
+          rirTarget: re.rir_target !== null && re.rir_target !== undefined ? re.rir_target : 1,
           previousPerformance,
+          videoUrl: re.exercise?.video_url || undefined,
+          imageUrl: re.exercise?.image_url || undefined,
         };
       });
 
@@ -156,18 +160,15 @@ function WorkoutPageContent() {
     const newSets: Record<string, SetData[]> = {};
     
     exercises.forEach((exercise) => {
-      // Skip if sets already exist
       if (exercisesSets[exercise.id]) return;
       
-      // Get the heaviest set (first one in sorted previousPerformance)
       const heaviestSet = exercise.previousPerformance?.[0];
       
-      // Create only ONE set - the heaviest one
       newSets[exercise.id] = [{
         setNumber: 1,
         weight: heaviestSet?.weight.toString() || "",
         reps: heaviestSet?.reps.toString() || "",
-        rir: exercise.rirTarget.toString(), // Use trainer's RIR target
+        rir: exercise.rirTarget.toString(),
       }];
     });
     
@@ -192,293 +193,380 @@ function WorkoutPageContent() {
     }));
   };
 
-  const handleRoutineChange = async (routineId: string) => {
-    const routine = routines.find(r => r.id === routineId);
-    if (!routine || !user?.id) return;
-    
+  const handleRoutineChange = async (routine: RoutineWithExercises) => {
     setSelectedRoutine(routine);
-    setExercises([]);
-    setExercisesSets({});
-    await loadExercisesWithHistory(routine, user.id);
+    setShowRoutineSelector(false);
+    setExercisesSets({}); // Clear previous sets
+    await loadExercisesWithHistory(routine, user?.id || '');
   };
 
-  const handleFinishWorkout = async () => {
+
+  const handleFinishWorkout = () => {
     if (!selectedRoutine || !user?.id || exercises.length === 0) return;
 
-    try {
-      setSaving(true);
-
-      // Check if workout is not empty - at least one exercise must have weight and reps
-      let hasValidSets = false;
-      const setsToSave: Array<{
-        exerciseId: string;
-        setNumber: number;
-        weight: number;
-        reps: number;
-        rir: number;
-      }> = [];
-
-      for (const exercise of exercises) {
-        const exerciseSets = exercisesSets[exercise.id] || [];
-        for (const set of exerciseSets) {
-          if (set.weight && set.reps) {
-            const weight = parseFloat(set.weight);
-            const reps = parseInt(set.reps);
-            
-            // Validate that weight and reps are valid numbers
-            if (!isNaN(weight) && !isNaN(reps) && weight > 0 && reps > 0) {
-              hasValidSets = true;
-              setsToSave.push({
-                exerciseId: exercise.exerciseId,
-                setNumber: set.setNumber,
-                weight,
-                reps,
-                rir: exercise.rirTarget,
-              });
-            }
+    // Check if at least one exercise has valid data
+    let hasValidData = false;
+    for (const exercise of exercises) {
+      const sets = exercisesSets[exercise.id] || [];
+      for (const set of sets) {
+        if (set.weight && set.reps) {
+          const weight = parseFloat(set.weight);
+          const reps = parseInt(set.reps);
+          if (!isNaN(weight) && !isNaN(reps) && weight > 0 && reps > 0) {
+            hasValidData = true;
+            break;
           }
         }
       }
-
-      // If no valid sets found, show error and don't save
-      if (!hasValidSets || setsToSave.length === 0) {
-        alert('לא ניתן לשמור אימון ריק. אנא הזן לפחות משקל וחזרות בתרגיל אחד.');
-        setSaving(false);
-        return;
-      }
-
-      // Create workout log
-      const now = new Date().toISOString();
-      const workoutLog = await createWorkoutLog({
-        user_id: user.id,
-        routine_id: selectedRoutine.id,
-        date: new Date().toISOString().split('T')[0],
-        notes: '',
-        body_weight: null,
-        start_time: now,
-        end_time: null,
-        completed: false,
-      });
-
-      // Create set logs for all valid sets
-      for (const setData of setsToSave) {
-        await createSetLog({
-          log_id: workoutLog.id,
-          exercise_id: setData.exerciseId,
-          set_number: setData.setNumber,
-          weight_kg: setData.weight,
-          reps: setData.reps,
-          rir_actual: setData.rir,
-          notes: '',
-        });
-      }
-
-      alert('האימון נשמר בהצלחה!');
-      
-      // Redirect to dashboard
-      window.location.href = '/trainee/dashboard';
-
-    } catch (error: any) {
-      console.error('Error saving workout:', error);
-      alert('שגיאה בשמירת האימון: ' + (error.message || 'שגיאה לא ידועה'));
-    } finally {
-      setSaving(false);
+      if (hasValidData) break;
     }
+
+    if (!hasValidData) {
+      alert('לא ניתן לסיים אימון ריק. אנא הזן לפחות משקל וחזרות בתרגיל אחד.');
+      return;
+    }
+
+    // Prepare workout data for summary page
+    const exercisesWithSets = exercises.map((exercise) => {
+      const sets = exercisesSets[exercise.id] || [];
+      return {
+        id: exercise.id,
+        name: exercise.name,
+        exerciseId: exercise.exerciseId,
+        specialInstructions: exercise.specialInstructions,
+        targetSets: exercise.targetSets,
+        targetReps: exercise.targetReps,
+        restTime: exercise.restTime,
+        rirTarget: exercise.rirTarget,
+        previousPerformance: exercise.previousPerformance,
+        videoUrl: exercise.videoUrl,
+        imageUrl: exercise.imageUrl,
+        muscleGroup: exercise.muscleGroup || 'אחר',
+        sets: sets.length > 0 ? sets : [{
+          setNumber: 1,
+          weight: "",
+          reps: "",
+          rir: exercise.rirTarget.toString(),
+        }],
+      };
+    });
+
+    // Store workout data in sessionStorage
+    const workoutSummaryData = {
+      exercises: exercisesWithSets,
+      routine: selectedRoutine,
+      startTime: startTime,
+    };
+
+    sessionStorage.setItem('workoutSummaryData', JSON.stringify(workoutSummaryData));
+
+    // Navigate to summary page
+    window.location.href = '/trainee/workout/summary';
   };
+
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center" dir="rtl">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600" />
-          <p className="mt-2 text-muted-foreground">טוען...</p>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#00ff88]" />
+          <p className="mt-2 text-gray-400">טוען...</p>
         </div>
       </div>
     );
   }
 
-  // No workout plan
   if (!workoutPlan || routines.length === 0 || !selectedRoutine || exercises.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" dir="rtl">
-        <div className="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow-lg">
-          <div className="max-w-2xl mx-auto">
-            <div className="flex items-center justify-between">
-              <Link href="/trainee/dashboard">
-                <Button variant="ghost" size="icon" className="text-white hover:bg-blue-700">
-                  <ArrowLeft className="h-6 w-6" />
-                </Button>
-              </Link>
-              <div className="text-center flex-1">
-                <h1 className="text-2xl font-bold">אין אימון זמין</h1>
-                <p className="text-blue-100 text-sm">המתן שהמאמן ייצור תוכנית אימונים</p>
-              </div>
-              <div className="w-10" />
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-2xl mx-auto p-4 space-y-4 pb-8">
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="pt-6 text-center">
-              <div className="text-6xl mb-4">🏋️‍♂️</div>
-              <h2 className="text-2xl font-bold text-yellow-900 mb-2">אין אימון היום</h2>
-              <p className="text-yellow-800 mb-4">
-                המאמן שלך עדיין לא יצר תוכנית אימונים או שהשלמת את כל האימונים השבועיים.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Link href="/trainee/dashboard">
-            <Button className="w-full" size="lg">
-              חזור לדשבורד
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-8" dir="rtl">
-      {/* Header */}
-      <div className="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow-lg">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-between">
+      <div className="min-h-screen bg-[#0a1628]" dir="rtl">
+        <div className="bg-[#1a2332] text-white p-4 sticky top-0 z-10 border-b border-gray-800">
+          <div className="max-w-2xl mx-auto flex items-center">
             <Link href="/trainee/dashboard">
-              <Button variant="ghost" size="icon" className="text-white hover:bg-blue-700">
+              <Button variant="ghost" size="icon" className="text-white hover:bg-gray-800">
                 <ArrowLeft className="h-6 w-6" />
               </Button>
             </Link>
             <div className="text-center flex-1">
-              {routines.length > 1 ? (
-                <div className="space-y-2">
-                  <select
-                    value={selectedRoutine.id}
-                    onChange={(e) => handleRoutineChange(e.target.value)}
-                    className="bg-blue-700 text-white border border-blue-500 rounded-md px-4 py-2 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  >
-                    {routines.map((routine) => (
-                      <option key={routine.id} value={routine.id} className="bg-white text-gray-900">
-                        אימון {routine.letter}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-blue-100 text-sm">
-                    {exercises.length} תרגילים
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <h1 className="text-2xl font-bold">אימון {selectedRoutine.letter}</h1>
-                  <p className="text-blue-100 text-sm">
-                    {exercises.length} תרגילים
-                  </p>
-                </>
-              )}
+              <h1 className="text-xl font-bold">אין אימון זמין</h1>
             </div>
             <div className="w-10" />
           </div>
         </div>
+
+        <div className="max-w-2xl mx-auto p-4">
+          <Card className="bg-[#1a2332] border-gray-800">
+            <CardContent className="pt-6 text-center">
+              <p className="text-gray-400">המאמן שלך עדיין לא יצר תוכנית אימונים</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+
+  return (
+    <div className="min-h-screen bg-[#0a1628] pb-20" dir="rtl">
+      {/* Header */}
+      <div className="bg-[#1a2332] text-white p-4 sticky top-0 z-10 border-b border-gray-800">
+        <div className="max-w-2xl mx-auto flex items-center">
+          <Link href="/trainee/dashboard">
+            <Button variant="ghost" size="icon" className="text-white hover:bg-gray-800">
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
+          </Link>
+          <div className="text-center flex-1">
+            <Button
+              variant="ghost"
+              onClick={() => setShowRoutineSelector(!showRoutineSelector)}
+              className="text-white hover:bg-gray-800"
+            >
+              <h1 className="text-xl font-bold">
+                {workoutPlan.name} {selectedRoutine.letter}
+                {selectedRoutine.name && ` - ${selectedRoutine.name}`}
+              </h1>
+              <ChevronDown className="h-5 w-5 mr-2" />
+            </Button>
+          </div>
+          <div className="w-10" />
+        </div>
       </div>
 
-      <div className="max-w-2xl mx-auto p-4 space-y-4">
+      {/* Routine Selector Dropdown */}
+      {showRoutineSelector && (
+        <div className="bg-[#1a2332] border-b border-gray-800 sticky top-[73px] z-10">
+          <div className="max-w-2xl mx-auto p-4">
+            <div className="space-y-2">
+              <p className="text-sm text-gray-400 mb-3">בחר רוטינה:</p>
+              {routines.map((routine) => (
+                <Button
+                  key={routine.id}
+                  variant={selectedRoutine?.id === routine.id ? "default" : "outline"}
+                  onClick={() => handleRoutineChange(routine)}
+                  className={`w-full justify-start ${
+                    selectedRoutine?.id === routine.id
+                      ? "bg-[#00ff88] hover:bg-[#00e677] text-black"
+                      : "bg-[#0f1a2a] border-gray-700 text-white hover:bg-gray-800"
+                  }`}
+                >
+                  <span className="font-bold text-lg ml-2">{routine.letter}</span>
+                  {routine.name && <span className="text-sm"> - {routine.name}</span>}
+                  {selectedRoutine?.id === routine.id && (
+                    <span className="mr-auto text-xs">(נבחר)</span>
+                  )}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-2xl mx-auto p-4 space-y-6">
         {/* All Exercises */}
         {exercises.map((exercise, index) => {
           const sets = exercisesSets[exercise.id] || [];
+          const set = sets[0] || { setNumber: 1, weight: "", reps: "", rir: exercise.rirTarget.toString() || "1" };
+          
           return (
-            <Card key={exercise.id} className="border-2 border-blue-500">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xl">
-                  {index + 1}. {exercise.name}
-                </CardTitle>
-                <CardDescription className="text-base">
-                  סט אחד × {exercise.targetReps} חזרות | RIR: {exercise.rirTarget}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Special Instructions */}
-                {exercise.specialInstructions && (
-                  <div className="bg-yellow-50 border-r-4 border-yellow-400 p-3 rounded">
-                    <p className="font-semibold text-yellow-900 text-sm mb-1">הוראות ביצוע:</p>
-                    <p className="text-yellow-800 text-sm">{exercise.specialInstructions}</p>
-                  </div>
-                )}
+            <div key={exercise.id} className="space-y-4">
+              {/* Exercise Name */}
+              <div>
+                <h2 className="text-lg text-gray-300 mb-2">תרגיל: {exercise.name}</h2>
+              </div>
 
-                {/* Set Input */}
-                {sets.length > 0 && (
-                  <div className="border rounded-lg p-3 bg-white">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-lg">סט 1</span>
-                      {exercise.previousPerformance?.[0] && (
-                        <span className="text-xs text-gray-500">
-                          הסט הכבד ביותר: {exercise.previousPerformance[0].weight} ק"ג ×{" "}
-                          {exercise.previousPerformance[0].reps} חזרות
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-600 block mb-1">משקל (ק"ג)</label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={sets[0].weight}
-                          onChange={(e) => updateSet(exercise.id, "weight", e.target.value)}
-                          placeholder={
-                            exercise.previousPerformance?.[0]?.weight.toString() || "0"
-                          }
-                          className="text-center font-semibold"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600 block mb-1">חזרות</label>
-                        <Input
-                          type="number"
-                          value={sets[0].reps}
-                          onChange={(e) => updateSet(exercise.id, "reps", e.target.value)}
-                          placeholder={
-                            exercise.previousPerformance?.[0]?.reps.toString() || "0"
-                          }
-                          className="text-center font-semibold"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-2 pt-2 border-t">
-                      <div className="text-sm text-gray-600">
-                        <span className="font-semibold">RIR יעד מהמאמן:</span> {exercise.rirTarget}
-                      </div>
+              {/* Video/Image */}
+              <div className="relative w-full aspect-video bg-[#1a2332] rounded-lg border border-gray-800 overflow-hidden">
+                {exercise.videoUrl ? (
+                  <video
+                    src={exercise.videoUrl}
+                    className="w-full h-full object-cover"
+                    controls
+                  />
+                ) : exercise.imageUrl ? (
+                  <img
+                    src={exercise.imageUrl}
+                    alt={exercise.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <Play className="h-16 w-16 text-gray-600 mx-auto mb-2" />
+                      <p className="text-gray-500">אין וידאו זמין</p>
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Set 1 */}
+              <Card className="bg-[#1a2332] border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-white text-xl">סט 1</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Weight and Reps */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-2">חזרות</label>
+                      <Input
+                        type="number"
+                        value={set.reps}
+                        onChange={(e) => updateSet(exercise.id, "reps", e.target.value)}
+                        placeholder={exercise.previousPerformance?.[0]?.reps.toString() || "10"}
+                        className="bg-[#0f1a2a] border-gray-700 text-white text-center text-lg font-semibold h-12"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-2">משקל (ק"ג)</label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={set.weight}
+                        onChange={(e) => updateSet(exercise.id, "weight", e.target.value)}
+                        placeholder={exercise.previousPerformance?.[0]?.weight.toString() || "80"}
+                        className="bg-[#0f1a2a] border-gray-700 text-white text-center text-lg font-semibold h-12"
+                      />
+                    </div>
+                  </div>
+
+                  {/* RIR Slider */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-gray-400">RIR:</label>
+                      <span className="text-lg font-bold text-[#00ff88]">{set.rir}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="0.5"
+                      value={set.rir}
+                      onChange={(e) => updateSet(exercise.id, "rir", e.target.value)}
+                      className="w-full h-2 bg-[#0f1a2a] rounded-lg appearance-none cursor-pointer slider"
+                      style={{
+                        background: `linear-gradient(to right, #00ff88 0%, #00ff88 ${(parseFloat(set.rir) / 10) * 100}%, #0f1a2a ${(parseFloat(set.rir) / 10) * 100}%, #0f1a2a 100%)`
+                      }}
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0</span>
+                      <span>2.5</span>
+                      <span>5</span>
+                      <span>7.5</span>
+                      <span>10</span>
+                    </div>
+                  </div>
+
+                  {/* Previous Best */}
+                  {exercise.previousPerformance?.[0] && (
+                    <div className="bg-[#0f1a2a] rounded-lg p-3 border border-gray-800">
+                      <p className="text-sm text-gray-400">
+                        הכי טוב קודם: {exercise.previousPerformance[0].reps} חזרות, {exercise.previousPerformance[0].weight} ק"ג
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           );
         })}
 
-        {/* Save Workout Button */}
-        <Card>
-          <CardContent className="pt-6">
-            <Button 
-              className="w-full bg-green-600 hover:bg-green-700" 
-              size="lg"
-              onClick={handleFinishWorkout}
-              disabled={saving}
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 ml-2 animate-spin" />
-                  שומר אימון...
-                </>
-              ) : (
-                'שמור אימון'
-              )}
-            </Button>
-            <p className="text-center text-sm text-gray-500 mt-2">
-              שמירת האימון למעקב
-            </p>
-          </CardContent>
-        </Card>
+        {/* Action Button */}
+        <Button
+          className="w-full bg-[#00ff88] hover:bg-[#00e677] text-black font-bold h-14 text-lg"
+          onClick={handleFinishWorkout}
+          disabled={saving}
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-5 w-5 ml-2 animate-spin" />
+              שומר...
+            </>
+          ) : (
+            "סיים אימון"
+          )}
+        </Button>
+
+      </div>
+
+      {/* Bottom Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#1a2332] border-t border-gray-800 px-4 py-2 pb-safe">
+        <div className="max-w-md mx-auto flex items-center justify-around">
+          <Link href="/trainee/dashboard" className="flex flex-col items-center gap-1 py-2 px-4">
+            <Home className={`h-5 w-5 ${pathname === '/trainee/dashboard' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
+            <span className={`text-xs ${pathname === '/trainee/dashboard' ? 'text-[#00ff88]' : 'text-gray-500'}`}>בית</span>
+          </Link>
+          <Link href="/trainee/history" className="flex flex-col items-center gap-1 py-2 px-4">
+            <BarChart3 className={`h-5 w-5 ${pathname === '/trainee/history' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
+            <span className={`text-xs ${pathname === '/trainee/history' ? 'text-[#00ff88]' : 'text-gray-500'}`}>התקדמות</span>
+          </Link>
+          <Link href="/trainee/nutrition" className="flex flex-col items-center gap-1 py-2 px-4">
+            <Apple className={`h-5 w-5 ${pathname === '/trainee/nutrition' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
+            <span className={`text-xs ${pathname === '/trainee/nutrition' ? 'text-[#00ff88]' : 'text-gray-500'}`}>תזונה</span>
+          </Link>
+          <Link href="/trainee/workout" className="flex flex-col items-center gap-1 py-2 px-4">
+            <Dumbbell className={`h-5 w-5 ${pathname?.startsWith('/trainee/workout') ? 'text-[#00ff88]' : 'text-gray-500'}`} />
+            <span className={`text-xs ${pathname?.startsWith('/trainee/workout') ? 'text-[#00ff88]' : 'text-gray-500'}`}>אימון</span>
+          </Link>
+          <Link href="/trainee/settings" className="flex flex-col items-center gap-1 py-2 px-4">
+            <Settings className={`h-5 w-5 ${pathname === '/trainee/settings' ? 'text-[#00ff88]' : 'text-gray-500'}`} />
+            <span className={`text-xs ${pathname === '/trainee/settings' ? 'text-[#00ff88]' : 'text-gray-500'}`}>הגדרות</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Instructions Modal */}
+      {showInstructions && exercises.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowInstructions(false)}>
+          <Card className="bg-[#1a2332] border-gray-800 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <CardHeader>
+              <CardTitle className="text-white">הוראות תרגילים</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {exercises.map((exercise) => (
+                exercise.specialInstructions && (
+                  <div key={exercise.id} className="border-b border-gray-800 pb-4 last:border-0">
+                    <h3 className="text-white font-semibold mb-2">{exercise.name}</h3>
+                    <p className="text-gray-300 whitespace-pre-line text-sm">{exercise.specialInstructions}</p>
+                  </div>
+                )
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Calculator Modal */}
+      {showCalculator && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCalculator(false)}>
+          <Card className="bg-[#1a2332] border-gray-800 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <CardHeader>
+              <CardTitle className="text-white">מחשבון משקולות</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-400">מחשבון משקולות יתווסף בהמשך</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Floating Action Buttons */}
+      <div className="fixed bottom-20 left-4 right-4 flex justify-between max-w-md mx-auto z-40">
+        <Button
+          variant="outline"
+          size="icon"
+          className="bg-[#1a2332] border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white rounded-full w-12 h-12"
+          onClick={() => setShowCalculator(!showCalculator)}
+        >
+          <Calculator className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="bg-[#1a2332] border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white rounded-full w-12 h-12"
+          onClick={() => setShowInstructions(!showInstructions)}
+        >
+          <Info className="h-5 w-5" />
+        </Button>
       </div>
     </div>
   );

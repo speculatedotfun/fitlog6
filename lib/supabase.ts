@@ -19,8 +19,15 @@ export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
-  }
+    flowType: 'pkce',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'sb-auth-token',
+  },
+  global: {
+    headers: {
+      'x-client-info': 'trainer-app',
+    },
+  },
 });
 
 // For server-side usage (API routes, server components)

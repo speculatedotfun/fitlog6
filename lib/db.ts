@@ -180,6 +180,18 @@ export async function createWorkoutPlan(plan: CreateWorkoutPlan): Promise<Workou
   return data;
 }
 
+export async function updateWorkoutPlan(planId: string, updates: Partial<WorkoutPlan>): Promise<WorkoutPlan> {
+  const { data, error } = await supabase
+    .from('workout_plans')
+    .update(updates)
+    .eq('id', planId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 // ============= ROUTINES =============
 export async function getRoutinesWithExercises(planId: string): Promise<RoutineWithExercises[]> {
   const { data, error } = await supabase
@@ -499,5 +511,243 @@ export async function getNutritionSwaps() {
 
   if (error) throw error;
   return data || [];
+}
+
+// ============= FOOD HISTORY =============
+export interface FoodHistoryItem {
+  foodName: string;
+  amount: string;
+  lastUsed?: string; // date when last used
+}
+
+export async function getFoodHistory(traineeId: string): Promise<FoodHistoryItem[]> {
+  try {
+    // Get all workout plans for this trainee (active and inactive)
+    const { data: plans, error: plansError } = await supabase
+      .from('workout_plans')
+      .select('id, nutrition_menu, updated_at, is_active')
+      .eq('trainee_id', traineeId)
+      .not('nutrition_menu', 'is', null)
+      .order('updated_at', { ascending: false });
+
+    if (plansError) {
+      // If column doesn't exist, return empty array
+      if (plansError.code === '42703' || plansError.message?.includes('column')) {
+        return [];
+      }
+      throw plansError;
+    }
+
+    if (!plans || plans.length === 0) {
+      return [];
+    }
+
+    // Extract all unique foods from all nutrition menus
+    const foodMap = new Map<string, { amount: string; lastUsed: string }>();
+
+    plans.forEach(plan => {
+      const menu = plan.nutrition_menu as NutritionMenu | null;
+      if (menu && menu.meals) {
+        menu.meals.forEach(meal => {
+          if (meal.foods) {
+            meal.foods.forEach(food => {
+              if (food.foodName && food.foodName.trim()) {
+                const existing = foodMap.get(food.foodName.trim());
+                const planDate = plan.updated_at || plan.id; // Use updated_at or id as fallback
+                
+                // Keep the most recent usage
+                if (!existing || (plan.updated_at && existing.lastUsed < plan.updated_at)) {
+                  foodMap.set(food.foodName.trim(), {
+                    amount: food.amount || '',
+                    lastUsed: plan.updated_at || planDate
+                  });
+                }
+              }
+            });
+          }
+        });
+      }
+    });
+
+    // Convert to array and sort by last used (most recent first)
+    const foodHistory: FoodHistoryItem[] = Array.from(foodMap.entries())
+      .map(([foodName, data]) => ({
+        foodName,
+        amount: data.amount,
+        lastUsed: data.lastUsed
+      }))
+      .sort((a, b) => {
+        if (!a.lastUsed || !b.lastUsed) return 0;
+        return new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime();
+      });
+
+    return foodHistory;
+  } catch (err: any) {
+    // Column might not exist yet or other non-critical errors
+    if (err.code === '42703' || err.code === 'PGRST204' || err.message?.includes('column')) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+// ============= TRAINER STATISTICS =============
+export interface TrainerStats {
+  activeTrainees: number;
+  workoutsToday: { completed: number; total: number };
+  averageCompliance: number;
+  alerts: number;
+}
+
+export async function getTrainerStats(trainerId: string): Promise<TrainerStats> {
+  // Get active trainees count
+  const { data: trainees, error: traineesError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('trainer_id', trainerId)
+    .eq('role', 'trainee');
+
+  if (traineesError) throw traineesError;
+  const traineeIds = trainees?.map(t => t.id) || [];
+
+  if (traineeIds.length === 0) {
+    return {
+      activeTrainees: 0,
+      workoutsToday: { completed: 0, total: 0 },
+      averageCompliance: 0,
+      alerts: 0,
+    };
+  }
+
+  // Get active workout plans
+  const { data: activePlans, error: plansError } = await supabase
+    .from('workout_plans')
+    .select('trainee_id, weekly_target_workouts')
+    .eq('trainer_id', trainerId)
+    .eq('is_active', true)
+    .in('trainee_id', traineeIds);
+
+  if (plansError) throw plansError;
+  const activeTrainees = activePlans?.length || 0;
+
+  // Get workouts today
+  const today = new Date().toISOString().split('T')[0];
+  const { data: todayLogs, error: logsError } = await supabase
+    .from('workout_logs')
+    .select('user_id, completed')
+    .eq('date', today)
+    .in('user_id', traineeIds);
+
+  if (logsError) throw logsError;
+  const completedToday = todayLogs?.filter(log => log.completed).length || 0;
+  const totalTarget = activePlans?.reduce((sum, plan) => sum + (plan.weekly_target_workouts || 0), 0) || 0;
+  const workoutsToday = { completed: completedToday, total: totalTarget };
+
+  // Calculate average compliance (simplified - based on completed workouts vs targets)
+  let totalCompliance = 0;
+  let complianceCount = 0;
+  
+  for (const plan of activePlans || []) {
+    const traineeId = plan.trainee_id;
+    const target = plan.weekly_target_workouts || 0;
+    
+    if (target > 0) {
+      // Get workouts this week
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      
+      const { data: weekLogs } = await supabase
+        .from('workout_logs')
+        .select('completed')
+        .eq('user_id', traineeId)
+        .gte('date', weekStart.toISOString().split('T')[0])
+        .eq('completed', true);
+      
+      const completed = weekLogs?.length || 0;
+      const compliance = Math.min(100, Math.round((completed / target) * 100));
+      totalCompliance += compliance;
+      complianceCount++;
+    }
+  }
+  
+  const averageCompliance = complianceCount > 0 ? Math.round(totalCompliance / complianceCount) : 0;
+
+  // Calculate alerts (trainees with low compliance or no workouts in 3+ days)
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+  const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
+  
+  const { data: recentLogs } = await supabase
+    .from('workout_logs')
+    .select('user_id')
+    .in('user_id', traineeIds)
+    .gte('date', threeDaysAgoStr);
+  
+  const traineesWithRecentWorkouts = new Set(recentLogs?.map(log => log.user_id) || []);
+  const alerts = traineeIds.filter(id => !traineesWithRecentWorkouts.has(id)).length;
+
+  return {
+    activeTrainees,
+    workoutsToday,
+    averageCompliance,
+    alerts,
+  };
+}
+
+export interface TraineeWithStatus {
+  id: string;
+  name: string;
+  planName: string;
+  status: 'active' | 'inactive';
+  lastWorkout: string | null;
+  compliance: number;
+}
+
+export async function getTraineesWithStatus(trainerId: string): Promise<TraineeWithStatus[]> {
+  const trainees = await getTrainerTrainees(trainerId);
+  const traineeIds = trainees.map(t => t.id);
+
+  if (traineeIds.length === 0) return [];
+
+  // Get active plans with names
+  const { data: plans } = await supabase
+    .from('workout_plans')
+    .select('trainee_id, name, is_active')
+    .eq('trainer_id', trainerId)
+    .in('trainee_id', traineeIds);
+
+  // Get last workout dates
+  const { data: logs } = await supabase
+    .from('workout_logs')
+    .select('user_id, date')
+    .in('user_id', traineeIds)
+    .order('date', { ascending: false });
+
+  // Get compliance for each trainee
+  const traineesWithStatus: TraineeWithStatus[] = [];
+  
+  for (const trainee of trainees) {
+    const plan = plans?.find(p => p.trainee_id === trainee.id);
+    const traineeLogs = logs?.filter(l => l.user_id === trainee.id) || [];
+    const lastWorkout = traineeLogs.length > 0 ? traineeLogs[0].date : null;
+    
+    // Calculate compliance (simplified)
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekLogs = traineeLogs.filter(l => l.date >= weekStart.toISOString().split('T')[0]);
+    const compliance = plan?.is_active ? Math.min(100, Math.round((weekLogs.length / 5) * 100)) : 0;
+
+    traineesWithStatus.push({
+      id: trainee.id,
+      name: trainee.name,
+      planName: plan?.name || 'אין תוכנית',
+      status: plan?.is_active ? 'active' : 'inactive',
+      lastWorkout,
+      compliance,
+    });
+  }
+
+  return traineesWithStatus;
 }
 
