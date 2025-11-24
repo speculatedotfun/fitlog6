@@ -1,183 +1,200 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dumbbell, TrendingUp, Apple, User } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  Dumbbell, Apple, Loader2, Trophy, Medal, Home, BarChart3, Settings
+} from "lucide-react";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useAuth } from "@/contexts/AuthContext";
+import { getActiveWorkoutPlan, getBodyWeightHistory, getNutritionMenu, saveBodyWeight, getRoutinesWithExercises, getDailyNutritionLog } from "@/lib/db";
+import { getNutritionTargets } from "@/lib/nutrition-config";
+import { WeightInputModal } from "@/components/trainee/WeightInputModal";
+import { BodyDataCard } from "@/components/trainee/BodyDataCard";
+import { DailyWorkoutCard } from "@/components/trainee/DailyWorkoutCard";
+import { NutritionSummary } from "@/components/trainee/NutritionSummary";
+import type { WorkoutPlan, NutritionMenu, RoutineWithExercises, DailyNutritionLog } from "@/lib/types";
 
-export default function TraineeDashboard() {
-  const [bodyWeight, setBodyWeight] = useState<string>("");
+function TraineeDashboardContent() {
+  const { user } = useAuth();
+  const pathname = usePathname();
   const [showWeightInput, setShowWeightInput] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
+  const [currentRoutine, setCurrentRoutine] = useState<RoutineWithExercises | null>(null);
+  const [weightHistory, setWeightHistory] = useState<Array<{ date: string; weight: number }>>([]);
+  const [nutritionMenu, setNutritionMenu] = useState<NutritionMenu | null>(null);
+  const [nutritionLog, setNutritionLog] = useState<DailyNutritionLog | null>(null);
 
-  // Mock data - will be replaced with real data from Supabase
-  const todayWorkout = { letter: "A", name: "רגליים" };
-  const nutritionProgress = { protein: 85, proteinTarget: 180, calories: 1450, caloriesTarget: 2800 };
-  const currentWeight = 82.5;
+  // Load data from Supabase
+  useEffect(() => {
+    if (user?.id) {
+      loadDashboardData();
+    }
+  }, [user?.id]);
 
-  const handleWeightSubmit = () => {
-    // TODO: Save to Supabase
-    console.log("Saving weight:", bodyWeight);
-    setShowWeightInput(false);
-    setBodyWeight("");
+  const loadDashboardData = async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+
+      // Load independent data in parallel
+      const [plan, weights, menu, log] = await Promise.all([
+        getActiveWorkoutPlan(user.id),
+        getBodyWeightHistory(user.id),
+        getNutritionMenu(user.id),
+        getDailyNutritionLog(user.id),
+      ]);
+
+      setWorkoutPlan(plan);
+      setWeightHistory(weights);
+      setNutritionMenu(menu);
+      setNutritionLog(log);
+
+      // Load routines only if plan exists (dependent on plan)
+      if (plan) {
+        const routines = await getRoutinesWithExercises(plan.id);
+        if (routines.length > 0) {
+          // Get today's routine (simplified - just take first routine for now)
+          setCurrentRoutine(routines[0]);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" dir="rtl">
-      <div className="max-w-2xl mx-auto space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between pt-4 pb-2">
-          <h1 className="text-3xl font-bold text-gray-900">היום שלי</h1>
-          <Button variant="ghost" size="icon">
-            <User className="h-6 w-6" />
-          </Button>
+  const handleWeightSave = async (weight: number) => {
+    if (!user?.id) return;
+    await saveBodyWeight(user.id, weight);
+    await loadDashboardData();
+  };
+
+  // Get nutrition targets from configuration
+  const nutritionTargets = getNutritionTargets(user?.id);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center" dir="rtl">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+          <p className="mt-4 text-muted-foreground font-medium">טוען נתונים...</p>
         </div>
+      </div>
+    );
+  }
 
-        {/* Today's Workout Card */}
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
+  return (
+    <div className="min-h-screen bg-background flex flex-col pb-24" dir="rtl">
+      {/* Header */}
+      <header className="bg-card border-b border-border sticky top-0 z-20 pt-safe">
+        <div className="px-4 py-4 flex items-center justify-center">
+          <h1 className="text-lg font-bold">
+            <span className="text-foreground">Universal </span>
+            <span className="text-primary">FitLog</span>
+          </h1>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 p-4 space-y-6">
+        <h2 className="text-2xl font-bold text-foreground">דשבורד מתאמן</h2>
+
+        {/* Today's Workout Section */}
+        <DailyWorkoutCard 
+          workoutPlan={workoutPlan}
+          currentRoutine={currentRoutine}
+        />
+
+        {/* Nutrition Log Section */}
+        <NutritionSummary 
+          nutritionLog={nutritionLog}
+          targets={nutritionTargets}
+        />
+
+        {/* Body Data Section */}
+        <BodyDataCard
+          weightHistory={weightHistory}
+          onAddWeight={() => setShowWeightInput(true)}
+        />
+
+        {/* New Achievements Section */}
+        <Card className="bg-card border-border shadow-md">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Dumbbell className="h-6 w-6" />
-              <CardTitle className="text-white">האימון של היום</CardTitle>
-            </div>
+            <CardTitle className="text-foreground text-lg">הישגים חדשים</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-6">
-              <div className="text-6xl font-bold mb-2">{todayWorkout.letter}</div>
-              <div className="text-2xl">{todayWorkout.name}</div>
-            </div>
-            <Link href="/trainee/workout">
-              <Button className="w-full bg-white text-blue-600 hover:bg-gray-100 font-semibold" size="lg">
-                התחל אימון
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Body Weight Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-gray-600" />
-                <CardTitle className="text-xl">משקל גוף</CardTitle>
-              </div>
-              {!showWeightInput && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowWeightInput(true)}
-                >
-                  עדכן
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!showWeightInput ? (
-              <div className="text-center py-4">
-                <div className="text-4xl font-bold text-gray-900">{currentWeight} ק"ג</div>
-                <CardDescription className="mt-2">נמדד הבוקר</CardDescription>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <input
-                  type="number"
-                  step="0.1"
-                  value={bodyWeight}
-                  onChange={(e) => setBodyWeight(e.target.value)}
-                  placeholder="הזן משקל (ק״ג)"
-                  className="w-full px-4 py-3 text-lg border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleWeightSubmit}
-                    className="flex-1"
-                    disabled={!bodyWeight}
-                  >
-                    שמור
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowWeightInput(false);
-                      setBodyWeight("");
-                    }}
-                    className="flex-1"
-                  >
-                    ביטול
-                  </Button>
+            <div className="flex items-center gap-4">
+              <div className="flex gap-2">
+                <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <Medal className="h-8 w-8 text-white" />
+                </div>
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <Trophy className="h-8 w-8 text-white" />
                 </div>
               </div>
-            )}
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">בנץ' פרס</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">סקוואט</span>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Nutrition Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Apple className="h-5 w-5 text-gray-600" />
-              <CardTitle className="text-xl">תזונה היום</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Protein Progress */}
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">חלבון</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {nutritionProgress.protein} / {nutritionProgress.proteinTarget} גרם
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div
-                  className="bg-green-500 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((nutritionProgress.protein / nutritionProgress.proteinTarget) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
+        {/* Weight Input Modal */}
+        <WeightInputModal
+          isOpen={showWeightInput}
+          onClose={() => setShowWeightInput(false)}
+          onSave={handleWeightSave}
+        />
+      </main>
 
-            {/* Calories Progress */}
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">קלוריות</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {nutritionProgress.calories} / {nutritionProgress.caloriesTarget}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div
-                  className="bg-blue-500 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((nutritionProgress.calories / nutritionProgress.caloriesTarget) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-
-            <Link href="/trainee/nutrition">
-              <Button variant="outline" className="w-full">
-                מחשבון המרות תזונה
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">פעולות מהירות</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-start">
-              צפה בהיסטוריית אימונים
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              גרפי התקדמות
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Bottom Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border pb-safe z-30">
+        <div className="flex items-center justify-around">
+          <Link href="/trainee/dashboard" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Home className={`h-6 w-6 ${pathname === '/trainee/dashboard' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/dashboard' ? 'text-primary' : 'text-muted-foreground'}`}>בית</span>
+          </Link>
+          <Link href="/trainee/history" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <BarChart3 className={`h-6 w-6 ${pathname === '/trainee/history' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/history' ? 'text-primary' : 'text-muted-foreground'}`}>התקדמות</span>
+          </Link>
+          <Link href="/trainee/nutrition" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Apple className={`h-6 w-6 ${pathname === '/trainee/nutrition' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/nutrition' ? 'text-primary' : 'text-muted-foreground'}`}>תזונה</span>
+          </Link>
+          <Link href="/trainee/workout" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Dumbbell className={`h-6 w-6 ${pathname?.startsWith('/trainee/workout') ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname?.startsWith('/trainee/workout') ? 'text-primary' : 'text-muted-foreground'}`}>אימון</span>
+          </Link>
+          <Link href="/trainee/settings" className="flex flex-col items-center gap-1 py-3 px-2 flex-1 hover:bg-accent/50 transition-colors">
+            <Settings className={`h-6 w-6 ${pathname === '/trainee/settings' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-[10px] font-medium ${pathname === '/trainee/settings' ? 'text-primary' : 'text-muted-foreground'}`}>הגדרות</span>
+          </Link>
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function TraineeDashboard() {
+  return (
+    <ProtectedRoute requiredRole="trainee">
+      <TraineeDashboardContent />
+    </ProtectedRoute>
   );
 }
