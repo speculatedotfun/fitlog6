@@ -3,19 +3,19 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Dumbbell, Apple, Loader2, Clock, Trophy, Medal, Home, BarChart3, Settings
+  Dumbbell, Apple, Loader2, Trophy, Medal, Home, BarChart3, Settings
 } from "lucide-react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { getActiveWorkoutPlan, getBodyWeightHistory, getNutritionMenu, saveBodyWeight, getRoutinesWithExercises } from "@/lib/db";
+import { getActiveWorkoutPlan, getBodyWeightHistory, getNutritionMenu, saveBodyWeight, getRoutinesWithExercises, getDailyNutritionLog } from "@/lib/db";
 import { getNutritionTargets } from "@/lib/nutrition-config";
 import { WeightInputModal } from "@/components/trainee/WeightInputModal";
-import { NutritionDonutChart } from "@/components/trainee/NutritionDonutChart";
 import { BodyDataCard } from "@/components/trainee/BodyDataCard";
-import type { WorkoutPlan, NutritionMenu, RoutineWithExercises } from "@/lib/types";
+import { DailyWorkoutCard } from "@/components/trainee/DailyWorkoutCard";
+import { NutritionSummary } from "@/components/trainee/NutritionSummary";
+import type { WorkoutPlan, NutritionMenu, RoutineWithExercises, DailyNutritionLog } from "@/lib/types";
 
 function TraineeDashboardContent() {
   const { user } = useAuth();
@@ -26,6 +26,7 @@ function TraineeDashboardContent() {
   const [currentRoutine, setCurrentRoutine] = useState<RoutineWithExercises | null>(null);
   const [weightHistory, setWeightHistory] = useState<Array<{ date: string; weight: number }>>([]);
   const [nutritionMenu, setNutritionMenu] = useState<NutritionMenu | null>(null);
+  const [nutritionLog, setNutritionLog] = useState<DailyNutritionLog | null>(null);
 
   // Load data from Supabase
   useEffect(() => {
@@ -41,15 +42,17 @@ function TraineeDashboardContent() {
       setLoading(true);
 
       // Load independent data in parallel
-      const [plan, weights, menu] = await Promise.all([
+      const [plan, weights, menu, log] = await Promise.all([
         getActiveWorkoutPlan(user.id),
         getBodyWeightHistory(user.id),
         getNutritionMenu(user.id),
+        getDailyNutritionLog(user.id),
       ]);
 
       setWorkoutPlan(plan);
       setWeightHistory(weights);
       setNutritionMenu(menu);
+      setNutritionLog(log);
 
       // Load routines only if plan exists (dependent on plan)
       if (plan) {
@@ -75,16 +78,6 @@ function TraineeDashboardContent() {
 
   // Get nutrition targets from configuration
   const nutritionTargets = getNutritionTargets(user?.id);
-  
-  // Calculate nutrition data for donut chart (example data - should come from DB in future)
-  const nutritionData = {
-    fluids: 2000, // ml - TODO: Load from daily nutrition log
-    protein: 150, // grams - TODO: Load from daily nutrition log
-    fat: 60, // grams - TODO: Load from daily nutrition log
-    carbs: 200, // grams - TODO: Load from daily nutrition log
-  };
-
-  const totalCalories = 2150; // Example - TODO: Calculate from nutritionData
 
   // Show loading state
   if (loading) {
@@ -115,51 +108,16 @@ function TraineeDashboardContent() {
         <h2 className="text-2xl font-bold text-foreground">דשבורד מתאמן</h2>
 
         {/* Today's Workout Section */}
-        <Card className="bg-card border-border shadow-md">
-          <CardHeader>
-            <CardTitle className="text-foreground text-lg">האימון של היום:</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {workoutPlan && currentRoutine ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">{workoutPlan.name} {currentRoutine.letter}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{currentRoutine.name}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-primary">
-                    <Clock className="h-5 w-5" />
-                    <span className="text-lg font-semibold">08:30</span>
-                  </div>
-                </div>
-                <Link href="/trainee/workout">
-                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 text-lg shadow-sm">
-                    התחל אימון
-                  </Button>
-                </Link>
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground">אין תוכנית אימונים פעילה</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <DailyWorkoutCard 
+          workoutPlan={workoutPlan}
+          currentRoutine={currentRoutine}
+        />
 
         {/* Nutrition Log Section */}
-        <Card className="bg-card border-border shadow-md">
-          <CardHeader>
-            <CardTitle className="text-foreground text-lg">יומן תזונה</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <NutritionDonutChart
-              data={nutritionData}
-              targets={nutritionTargets}
-              totalCalories={totalCalories}
-              targetCalories={nutritionTargets.calories}
-            />
-          </CardContent>
-        </Card>
+        <NutritionSummary 
+          nutritionLog={nutritionLog}
+          targets={nutritionTargets}
+        />
 
         {/* Body Data Section */}
         <BodyDataCard

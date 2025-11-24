@@ -17,6 +17,8 @@ import {
   createSetLog,
 } from "@/lib/db";
 import type { RoutineWithExercises } from "@/lib/types";
+import { ActiveExerciseCard } from "@/components/trainee/workout/ActiveExerciseCard";
+import { useWorkoutPersistence } from "@/hooks/useWorkoutPersistence";
 
 interface SetData {
   setNumber: number;
@@ -61,11 +63,36 @@ function WorkoutPageContent() {
     }
   }, [user?.id]);
 
+  const { loadBackup, clearBackup } = useWorkoutPersistence(
+    exercisesSets,
+    selectedRoutine?.id || null,
+    exercises.map(e => e.id)
+  );
+
   useEffect(() => {
-    if (exercises.length > 0) {
-      initializeAllSets();
+    if (exercises.length > 0 && selectedRoutine) {
+      // Try to restore from backup first
+      const backup = loadBackup();
+      if (backup && backup.routineId === selectedRoutine.id) {
+        // Check if backup matches current exercises
+        const backupExerciseIds = backup.exerciseIds || [];
+        const currentExerciseIds = exercises.map(e => e.id).sort();
+        const backupIdsSorted = [...backupExerciseIds].sort();
+        
+        if (JSON.stringify(currentExerciseIds) === JSON.stringify(backupIdsSorted)) {
+          // Restore without asking if it's the same routine and exercises
+          setExercisesSets(backup.sets);
+          return;
+        }
+      }
+      
+      // Otherwise initialize normally (only if no existing sets)
+      if (Object.keys(exercisesSets).length === 0) {
+        initializeAllSets();
+      }
     }
-  }, [exercises]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercises.length, selectedRoutine?.id]);
 
 
   const loadWorkoutData = async () => {
@@ -164,6 +191,7 @@ function WorkoutPageContent() {
       
       const heaviestSet = exercise.previousPerformance?.[0];
       
+      // Initialize with one set, but allow adding more
       newSets[exercise.id] = [{
         setNumber: 1,
         weight: heaviestSet?.weight.toString() || "",
@@ -180,16 +208,51 @@ function WorkoutPageContent() {
     }
   };
 
-  const updateSet = (exerciseId: string, field: keyof SetData, value: string) => {
+
+  const updateSet = (exerciseId: string, setIndex: number, field: keyof SetData, value: string) => {
     const currentSets = exercisesSets[exerciseId] || [];
     const newSets = [...currentSets];
-    if (newSets[0]) {
-      newSets[0] = { ...newSets[0], [field]: value };
+    if (newSets[setIndex]) {
+      newSets[setIndex] = { ...newSets[setIndex], [field]: value };
     }
     
     setExercisesSets((prev: Record<string, SetData[]>) => ({
       ...prev,
       [exerciseId]: newSets,
+    }));
+  };
+
+  const addSet = (exerciseId: string) => {
+    const currentSets = exercisesSets[exerciseId] || [];
+    const lastSet = currentSets[currentSets.length - 1];
+    
+    const newSet: SetData = {
+      setNumber: currentSets.length + 1,
+      weight: lastSet?.weight || "",
+      reps: lastSet?.reps || "",
+      rir: lastSet?.rir || "2",
+    };
+    
+    setExercisesSets((prev) => ({
+      ...prev,
+      [exerciseId]: [...currentSets, newSet],
+    }));
+  };
+
+  const removeSet = (exerciseId: string, setIndex: number) => {
+    const currentSets = exercisesSets[exerciseId] || [];
+    if (currentSets.length <= 1) return; // Don't allow removing the last set
+    
+    const newSets = currentSets.filter((_, index) => index !== setIndex);
+    // Renumber sets
+    const renumberedSets = newSets.map((set, index) => ({
+      ...set,
+      setNumber: index + 1,
+    }));
+    
+    setExercisesSets((prev) => ({
+      ...prev,
+      [exerciseId]: renumberedSets,
     }));
   };
 
@@ -201,7 +264,7 @@ function WorkoutPageContent() {
   };
 
 
-  const handleFinishWorkout = () => {
+  const handleFinishWorkout = async () => {
     if (!selectedRoutine || !user?.id || exercises.length === 0) return;
 
     // Check if at least one exercise has valid data
@@ -226,42 +289,55 @@ function WorkoutPageContent() {
       return;
     }
 
-    // Prepare workout data for summary page
-    const exercisesWithSets = exercises.map((exercise) => {
-      const sets = exercisesSets[exercise.id] || [];
-      return {
-        id: exercise.id,
-        name: exercise.name,
-        exerciseId: exercise.exerciseId,
-        specialInstructions: exercise.specialInstructions,
-        targetSets: exercise.targetSets,
-        targetReps: exercise.targetReps,
-        restTime: exercise.restTime,
-        rirTarget: exercise.rirTarget,
-        previousPerformance: exercise.previousPerformance,
-        videoUrl: exercise.videoUrl,
-        imageUrl: exercise.imageUrl,
-        muscleGroup: exercise.muscleGroup || 'אחר',
-        sets: sets.length > 0 ? sets : [{
-          setNumber: 1,
-          weight: "",
-          reps: "",
-          rir: exercise.rirTarget.toString(),
-        }],
-      };
-    });
+    try {
+      setSaving(true);
 
-    // Store workout data in sessionStorage
-    const workoutSummaryData = {
-      exercises: exercisesWithSets,
-      routine: selectedRoutine,
-      startTime: startTime,
-    };
+      // Create workout log in DB
+      const workoutLog = await createWorkoutLog({
+        user_id: user.id,
+        routine_id: selectedRoutine.id,
+        date: new Date().toISOString().split('T')[0],
+        body_weight: null,
+        start_time: startTime,
+        end_time: new Date().toISOString(),
+        notes: null,
+        completed: true,
+      });
 
-    sessionStorage.setItem('workoutSummaryData', JSON.stringify(workoutSummaryData));
+      // Create set logs for all exercises
+      for (const exercise of exercises) {
+        const sets = exercisesSets[exercise.id] || [];
+        for (const set of sets) {
+          const weight = parseFloat(set.weight);
+          const reps = parseInt(set.reps);
+          const rir = parseFloat(set.rir);
 
-    // Navigate to summary page
-    window.location.href = '/trainee/workout/summary';
+          // Only save sets with valid data
+          if (!isNaN(weight) && !isNaN(reps) && weight > 0 && reps > 0) {
+            await createSetLog({
+              log_id: workoutLog.id,
+              exercise_id: exercise.exerciseId,
+              set_number: set.setNumber,
+              weight_kg: weight,
+              reps: reps,
+              rir_actual: isNaN(rir) ? 2 : rir,
+              notes: null,
+            });
+          }
+        }
+      }
+
+      // Clear backup after successful save
+      clearBackup();
+
+      // Navigate to summary page with log ID
+      window.location.href = `/trainee/workout/summary?logId=${workoutLog.id}`;
+    } catch (error: any) {
+      console.error('Error finishing workout:', error);
+      alert('שגיאה בשמירת האימון: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
 
@@ -370,137 +446,24 @@ function WorkoutPageContent() {
       <div className="max-w-2xl mx-auto p-4 space-y-8">
         {/* All Exercises */}
         {exercises.map((exercise, index) => {
-          const sets = exercisesSets[exercise.id] || [];
-          const set = sets[0] || { setNumber: 1, weight: "", reps: "", rir: exercise.rirTarget.toString() || "1" };
+          const sets = exercisesSets[exercise.id] || [{
+            setNumber: 1,
+            weight: "",
+            reps: "",
+            rir: exercise.rirTarget.toString() || "1"
+          }];
           
           return (
-            <div key={exercise.id} className="space-y-4">
-              {/* Exercise Header */}
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                  <span className="bg-primary/20 text-primary text-sm font-bold w-6 h-6 rounded-full flex items-center justify-center">
-                    {index + 1}
-                  </span>
-                  {exercise.name}
-                </h2>
-                {exercise.specialInstructions && (
-                  <Button variant="ghost" size="sm" className="text-primary h-8 px-2" onClick={() => setShowInstructions(true)}>
-                    <Info className="h-4 w-4 ml-1" />
-                    הוראות
-                  </Button>
-                )}
-              </div>
-
-              {/* Video/Image */}
-              <div className="relative w-full aspect-video bg-black/50 rounded-xl border border-border overflow-hidden shadow-sm">
-                {exercise.videoUrl ? (
-                  <video
-                    src={exercise.videoUrl}
-                    className="w-full h-full object-cover"
-                    controls
-                    playsInline
-                  />
-                ) : exercise.imageUrl ? (
-                  <img
-                    src={exercise.imageUrl}
-                    alt={exercise.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <Play className="h-12 w-12 text-muted-foreground/50 mx-auto mb-2" />
-                      <p className="text-muted-foreground/70 text-sm">אין מדיה זמינה</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Set 1 */}
-              <Card className="bg-card border-border shadow-md overflow-hidden">
-                <div className="bg-accent/30 p-3 border-b border-border flex justify-between items-center">
-                  <span className="font-semibold text-foreground">סט עבודה</span>
-                  <div className="flex gap-4 text-sm text-muted-foreground">
-                    <span>מטרה: {exercise.targetSets} סטים</span>
-                    <span>{exercise.targetReps} חזרות</span>
-                  </div>
-                </div>
-                <CardContent className="p-4 space-y-6">
-                  {/* Weight and Reps */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-muted-foreground block text-center">חזרות</label>
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          inputMode="numeric"
-                          value={set.reps}
-                          onChange={(e) => updateSet(exercise.id, "reps", e.target.value)}
-                          placeholder={exercise.previousPerformance?.[0]?.reps.toString() || "10"}
-                          className="bg-background/50 border-input text-foreground text-center text-2xl font-bold h-16 rounded-xl focus:ring-primary/50"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-muted-foreground block text-center">משקל (ק"ג)</label>
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          step="0.5"
-                          inputMode="decimal"
-                          value={set.weight}
-                          onChange={(e) => updateSet(exercise.id, "weight", e.target.value)}
-                          placeholder={exercise.previousPerformance?.[0]?.weight.toString() || "80"}
-                          className="bg-background/50 border-input text-foreground text-center text-2xl font-bold h-16 rounded-xl focus:ring-primary/50"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* RIR Slider */}
-                  <div className="bg-background/30 p-4 rounded-xl border border-border/50">
-                    <div className="flex items-center justify-between mb-4">
-                      <label className="text-sm font-medium text-muted-foreground">קרבה לכשל (RIR):</label>
-                      <div className="bg-primary/20 text-primary px-3 py-1 rounded-full text-lg font-bold min-w-[3rem] text-center">
-                        {set.rir}
-                      </div>
-                    </div>
-                    <div className="px-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="5"
-                        step="0.5"
-                        value={set.rir}
-                        onChange={(e) => updateSet(exercise.id, "rir", e.target.value)}
-                        className="w-full h-3 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                        style={{
-                          background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(parseFloat(set.rir) / 5) * 100}%, hsl(var(--secondary)) ${(parseFloat(set.rir) / 5) * 100}%, hsl(var(--secondary)) 100%)`
-                        }}
-                      />
-                      <div className="flex justify-between text-xs text-muted-foreground mt-2 font-medium">
-                        <span>0 (כשל)</span>
-                        <span>1</span>
-                        <span>2</span>
-                        <span>3</span>
-                        <span>4</span>
-                        <span>5 (קל)</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Previous Best */}
-                  {exercise.previousPerformance?.[0] && (
-                    <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20 flex items-center gap-3">
-                      <Trophy className="h-5 w-5 text-blue-400 flex-shrink-0" />
-                      <p className="text-sm text-blue-100">
-                        שיא אישי: <span className="font-bold">{exercise.previousPerformance[0].weight} ק"ג</span> ל-<span className="font-bold">{exercise.previousPerformance[0].reps} חזרות</span>
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <ActiveExerciseCard
+              key={exercise.id}
+              exercise={exercise}
+              index={index}
+              sets={sets}
+              onUpdateSet={updateSet}
+              onAddSet={addSet}
+              onRemoveSet={removeSet}
+              onShowInstructions={() => setShowInstructions(true)}
+            />
           );
         })}
 

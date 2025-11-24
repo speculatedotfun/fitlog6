@@ -9,7 +9,17 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { getTrainerTrainees, getTrainerStats, getTraineesWithStatus, getWorkoutLogs, getBodyWeightHistory } from "@/lib/db";
+import { 
+  getTrainerTrainees, 
+  getTrainerStats, 
+  getTraineesWithStatus, 
+  getWorkoutLogsForUsers,
+  getBodyWeightHistoryForUsers,
+  getWorkoutLogs,
+  getBodyWeightHistory
+} from "@/lib/db";
+import { calculateTraineeStats } from "@/lib/trainee-stats";
+import { createCsvContent, downloadCsv, createCsvRow } from "@/lib/csv-export";
 import type { User } from "@/lib/types";
 
 interface TraineeReport {
@@ -48,94 +58,70 @@ function ReportsContent() {
   }, [trainerId, timeFilter]);
 
   const loadReports = async () => {
+    if (!trainerId) return;
+
     try {
       setLoading(true);
 
-      // Load trainer stats
-      const trainerStats = await getTrainerStats(trainerId);
+      // 1. Load trainer stats and trainees in parallel
+      const [trainerStats, trainees] = await Promise.all([
+        getTrainerStats(trainerId),
+        getTrainerTrainees(trainerId),
+      ]);
+
       setStats(trainerStats);
 
-      // Load all trainees
-      const trainees = await getTrainerTrainees(trainerId);
+      if (trainees.length === 0) {
+        setReports([]);
+        setLoading(false);
+        return;
+      }
+
+      const traineeIds = trainees.map(t => t.id);
+
+      // 2. Calculate start date for filtering (server-side optimization)
+      const now = new Date();
+      let startDate: string | undefined;
       
-      // Calculate reports for each trainee
-      const reportsData: TraineeReport[] = [];
+      if (timeFilter === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        startDate = weekAgo.toISOString().split('T')[0];
+      } else if (timeFilter === "month") {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        startDate = monthAgo.toISOString().split('T')[0];
+      }
 
-      for (const trainee of trainees) {
-        const logs = await getWorkoutLogs(trainee.id);
-        const weightHistory = await getBodyWeightHistory(trainee.id);
+      // 3. Load all data in parallel (optimized queries)
+      const [logsMap, weightsMap, statusData] = await Promise.all([
+        getWorkoutLogsForUsers(traineeIds, startDate),
+        getBodyWeightHistoryForUsers(traineeIds),
+        getTraineesWithStatus(trainerId),
+      ]);
 
-        // Filter logs by time period
-        const now = new Date();
-        let filteredLogs = logs;
-        
-        if (timeFilter === "week") {
-          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          filteredLogs = logs.filter(log => new Date(log.date) >= weekAgo);
-        } else if (timeFilter === "month") {
-          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          filteredLogs = logs.filter(log => new Date(log.date) >= monthAgo);
-        }
+      // 4. Process data in memory (much faster than network requests)
+      const reportsData: TraineeReport[] = trainees.map(trainee => {
+        const logs = logsMap.get(trainee.id) || [];
+        const weightHistory = weightsMap.get(trainee.id) || [];
+        const traineeStatus = statusData.find(s => s.id === trainee.id);
 
-        // Calculate statistics
-        const completedLogs = filteredLogs.filter(log => log.completed);
-        const totalWorkouts = completedLogs.length;
-        
-        const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const workoutsThisWeek = completedLogs.filter(log => 
-          new Date(log.date) >= thisWeek
-        ).length;
+        // Use shared calculation function
+        const stats = calculateTraineeStats(logs, weightHistory, timeFilter);
 
-        const thisMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const workoutsThisMonth = completedLogs.filter(log => 
-          new Date(log.date) >= thisMonth
-        ).length;
-
-        // Calculate total volume
-        let totalVolume = 0;
-        completedLogs.forEach(log => {
-          log.set_logs?.forEach(setLog => {
-            if (setLog.weight_kg && setLog.reps) {
-              totalVolume += setLog.weight_kg * setLog.reps;
-            }
-          });
-        });
-
-        // Calculate weight statistics
-        let averageWeight: number | null = null;
-        let weightChange: number | null = null;
-        
-        if (weightHistory.length > 0) {
-          const recentWeights = weightHistory.slice(0, 7); // Last 7 measurements
-          const sum = recentWeights.reduce((acc, w) => acc + w.weight, 0);
-          averageWeight = sum / recentWeights.length;
-
-          if (weightHistory.length >= 2) {
-            const latest = weightHistory[0].weight;
-            const previous = weightHistory[weightHistory.length - 1].weight;
-            weightChange = latest - previous;
-          }
-        }
-
-        // Get plan info
-        const traineesWithStatus = await getTraineesWithStatus(trainerId);
-        const traineeStatus = traineesWithStatus.find(t => t.id === trainee.id);
-
-        reportsData.push({
+        return {
           id: trainee.id,
           name: trainee.name,
           planName: traineeStatus?.planName || "אין תוכנית",
           status: traineeStatus?.status || 'inactive',
           lastWorkout: traineeStatus?.lastWorkout || null,
           compliance: traineeStatus?.compliance || 0,
-          totalWorkouts,
-          workoutsThisWeek,
-          workoutsThisMonth,
-          averageWeight,
-          weightChange,
-          totalVolume,
-        });
-      }
+          totalWorkouts: stats.totalWorkouts,
+          workoutsThisWeek: stats.workoutsThisWeek,
+          workoutsThisMonth: stats.workoutsThisMonth,
+          averageWeight: stats.averageWeight,
+          weightChange: stats.weightChange,
+          totalVolume: stats.totalVolume,
+        };
+      });
 
       setReports(reportsData);
     } catch (error: any) {
@@ -156,65 +142,65 @@ function ReportsContent() {
   };
 
   const exportReport = () => {
-    // Create CSV content
-    const headers = ["שם", "תוכנית", "סטטוס", "אימונים (סה\"כ)", "אימונים (שבוע)", "אימונים (חודש)", "התאמה", "משקל ממוצע", "שינוי משקל", "נפח כולל"];
+    const headers = [
+      "שם",
+      "תוכנית",
+      "סטטוס",
+      "אימונים (סה\"כ)",
+      "אימונים (שבוע)",
+      "אימונים (חודש)",
+      "התאמה",
+      "משקל ממוצע",
+      "שינוי משקל",
+      "נפח כולל"
+    ];
+
     const rows = reports.map(r => [
       r.name,
       r.planName,
       r.status === 'active' ? 'פעיל' : 'לא פעיל',
-      r.totalWorkouts.toString(),
-      r.workoutsThisWeek.toString(),
-      r.workoutsThisMonth.toString(),
+      r.totalWorkouts,
+      r.workoutsThisWeek,
+      r.workoutsThisMonth,
       `${r.compliance}%`,
       r.averageWeight ? `${r.averageWeight.toFixed(1)} ק\"ג` : "אין",
       r.weightChange ? `${r.weightChange > 0 ? '+' : ''}${r.weightChange.toFixed(1)} ק\"ג` : "אין",
       `${r.totalVolume.toFixed(0)} ק\"ג`
     ]);
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.join(","))
-    ].join("\n");
-
-    // Add BOM for Hebrew support
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `דוחות_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = createCsvContent(headers, rows);
+    const filename = `דוחות_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadCsv(csvContent, filename);
   };
 
   const exportTraineeReport = async (report: TraineeReport) => {
     try {
-      // Load detailed data for this trainee
-      const logs = await getWorkoutLogs(report.id);
-      const weightHistory = await getBodyWeightHistory(report.id);
-
-      // Filter logs by time period
+      // Calculate start date for filtering
       const now = new Date();
-      let filteredLogs = logs;
+      let startDate: string | undefined;
       
       if (timeFilter === "week") {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        filteredLogs = logs.filter(log => new Date(log.date) >= weekAgo);
+        startDate = weekAgo.toISOString().split('T')[0];
       } else if (timeFilter === "month") {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        filteredLogs = logs.filter(log => new Date(log.date) >= monthAgo);
+        startDate = monthAgo.toISOString().split('T')[0];
       }
 
-      const completedLogs = filteredLogs.filter(log => log.completed);
+      // Load detailed data for this trainee (with server-side filtering)
+      const [logs, weightHistory] = await Promise.all([
+        getWorkoutLogs(report.id, undefined, startDate),
+        getBodyWeightHistory(report.id),
+      ]);
 
-      // Create detailed CSV
+      const completedLogs = logs.filter(log => log.completed);
+
+      // Create detailed CSV with safe escaping
       const headers = [
         "תאריך", "רוטינה", "תרגיל", "סט", "משקל (ק\"ג)", "חזרות", "RIR", "נפח (ק\"ג)", "הערות"
       ];
 
-      const rows: string[][] = [];
+      const rows: (string | number | null | undefined)[][] = [];
 
       // Add summary section
       rows.push(["דוח מפורט - " + report.name]);
@@ -245,10 +231,10 @@ function ReportsContent() {
               log.date,
               routineName,
               exerciseName,
-              (setLog.set_number || index + 1).toString(),
-              (setLog.weight_kg || 0).toString(),
-              (setLog.reps || 0).toString(),
-              (setLog.rir_actual !== null && setLog.rir_actual !== undefined ? setLog.rir_actual.toString() : ''),
+              setLog.set_number || index + 1,
+              setLog.weight_kg || 0,
+              setLog.reps || 0,
+              setLog.rir_actual !== null && setLog.rir_actual !== undefined ? setLog.rir_actual : '',
               volume.toFixed(1),
               setLog.notes || ''
             ]);
@@ -279,20 +265,11 @@ function ReportsContent() {
         });
       }
 
-      const csvContent = rows.map(row => row.join(",")).join("\n");
-
-      // Add BOM for Hebrew support
-      const BOM = "\uFEFF";
-      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
+      // Use safe CSV export
+      const csvContent = rows.map(row => createCsvRow(row)).join("\n");
       const safeName = report.name.replace(/[^a-zA-Z0-9]/g, '_');
-      link.setAttribute("download", `דוח_${safeName}_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const filename = `דוח_${safeName}_${new Date().toISOString().split('T')[0]}.csv`;
+      downloadCsv(csvContent, filename);
     } catch (error: any) {
       console.error("Error exporting trainee report:", error);
       alert("שגיאה בייצוא הדוח: " + error.message);

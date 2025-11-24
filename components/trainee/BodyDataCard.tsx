@@ -21,30 +21,26 @@ export function BodyDataCard({ weightHistory, onAddWeight }: BodyDataCardProps) 
   // Prepare data for chart (last 7 data points, or all if less than 7)
   const chartData = weightHistory.slice(0, 7).reverse(); // Reverse to show oldest to newest
   
-  // Calculate chart dimensions
-  const chartWidth = 96;
-  const chartHeight = 64;
-  const padding = 8;
-  const graphWidth = chartWidth - padding * 2;
-  const graphHeight = chartHeight - padding * 2;
+  // Generate weight path for SVG
+  const generateWeightPath = (history: WeightDataPoint[]): string => {
+    if (history.length < 2) return "";
+    
+    const weights = history.slice(0, 7).reverse(); // Take last 7 weights
+    const maxW = Math.max(...weights.map(w => w.weight));
+    const minW = Math.min(...weights.map(w => w.weight));
+    const range = maxW - minW || 1;
+    
+    // Normalize data to coordinates (width 100, height 40)
+    const points = weights.map((w, i) => {
+      const x = (i / (weights.length - 1)) * 100;
+      const y = 40 - ((w.weight - minW) / range) * 40;
+      return `${x},${y}`;
+    }).join(" ");
+    
+    return points;
+  };
 
-  // Calculate min/max for scaling
-  const weights = chartData.map(d => d.weight);
-  const minWeight = weights.length > 0 ? Math.min(...weights) : 0;
-  const maxWeight = weights.length > 0 ? Math.max(...weights) : 100;
-  const weightRange = maxWeight - minWeight || 1;
-
-  // Generate points for polyline
-  const points = chartData.map((d, i) => {
-    const x = padding + (i / (chartData.length - 1 || 1)) * graphWidth;
-    const y = padding + graphHeight - ((d.weight - minWeight) / weightRange) * graphHeight;
-    return `${x},${y}`;
-  }).join(' ');
-
-  // Generate polygon points (for fill area)
-  const polygonPoints = points.length > 0 
-    ? `${points} ${padding + graphWidth},${padding + graphHeight} ${padding},${padding + graphHeight}`
-    : '';
+  const weightPath = generateWeightPath(weightHistory);
 
   return (
     <Card className="bg-card border-border shadow-md">
@@ -55,24 +51,21 @@ export function BodyDataCard({ weightHistory, onAddWeight }: BodyDataCardProps) 
         <div className="grid grid-cols-2 gap-6">
           {/* Weight Graph */}
           <div className="flex items-center justify-center">
-            {chartData.length > 0 ? (
-              <div className="w-24 h-16 relative">
-                <svg className="w-full h-full">
+            {weightHistory.length > 1 ? (
+              <div className="w-full h-16 relative">
+                <svg className="w-full h-full" viewBox="0 0 100 40" preserveAspectRatio="none">
                   <polyline
-                    points={points}
+                    points={weightPath}
                     fill="none"
                     className="stroke-primary"
                     strokeWidth="2"
-                  />
-                  <polygon
-                    points={polygonPoints}
-                    className="fill-primary/20"
+                    vectorEffect="non-scaling-stroke"
                   />
                 </svg>
               </div>
             ) : (
-              <div className="w-24 h-16 flex items-center justify-center text-muted-foreground text-xs">
-                אין נתונים
+              <div className="w-full h-16 flex items-center justify-center text-muted-foreground text-xs">
+                <p className="text-center">נדרשות 2 שקילות לגרף</p>
               </div>
             )}
           </div>

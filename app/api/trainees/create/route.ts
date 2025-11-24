@@ -1,27 +1,70 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
-    const { email, password, name, trainerId } = await request.json();
+    const cookieStore = await cookies();
+    
+    // Create server-side Supabase client with cookies
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try {
+                cookieStore.set(name, value, options);
+              } catch {
+                // Ignore cookie errors in API routes
+              }
+            });
+          },
+        },
+      }
+    );
 
-    if (!email || !password || !name || !trainerId) {
+    // 1. Security: Verify the requesting user
+    const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !currentUser) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // 2. Verify the user is a trainer (optional but recommended)
+    const { data: trainerProfile, error: profileError } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('id', currentUser.id)
+      .eq('role', 'trainer')
+      .single();
+
+    if (profileError || !trainerProfile) {
+      return NextResponse.json(
+        { error: 'Only trainers can create trainee accounts' },
+        { status: 403 }
+      );
+    }
+
+    // 3. Get request body (without trainerId - we use the authenticated user's ID)
+    const { email, password, name } = await request.json();
+
+    if (!email || !password || !name) {
+      return NextResponse.json(
+        { error: 'Missing required fields: email, password, name' },
         { status: 400 }
       );
     }
 
-    // Create auth user (this requires service role key in production)
-    // For now, we'll create the user directly in the database
-    // In production, you might want to use Supabase Admin API
-    
-    // First, create user record - the auth will be handled separately
-    // Or use a server-side service role key to create auth user
-    
-    // For now, let's use a workaround - create user with a temporary password
-    // The trainer will need to tell the trainee their credentials
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // 4. Create auth user
+    const { data: authData, error: authError: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -32,9 +75,9 @@ export async function POST(request: Request) {
       },
     });
 
-    if (authError) {
+    if (signUpError) {
       return NextResponse.json(
-        { error: authError.message },
+        { error: signUpError.message },
         { status: 400 }
       );
     }
@@ -46,7 +89,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create user record in users table
+    // 5. Create user record in database with authenticated trainer's ID
     const { data: userData, error: userError } = await supabase
       .from('users')
       .insert({
@@ -54,7 +97,7 @@ export async function POST(request: Request) {
         email,
         name,
         role: 'trainee',
-        trainer_id: trainerId,
+        trainer_id: currentUser.id, // Use authenticated user's ID, not from request body!
       })
       .select()
       .single();
@@ -70,6 +113,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(userData);
   } catch (error: any) {
+    console.error('Error creating trainee:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

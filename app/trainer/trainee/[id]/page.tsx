@@ -15,6 +15,7 @@ import {
   getBodyWeightHistory,
 } from "@/lib/db";
 import type { User, WorkoutLogWithDetails } from "@/lib/types";
+import { SimpleLineChart } from "@/components/ui/SimpleLineChart";
 
 function TraineeManagementPageContent() {
   const params = useParams();
@@ -66,107 +67,6 @@ function TraineeManagementPageContent() {
     }
   };
 
-  // Line Chart Component for Body Weight
-  const LineChart = ({ 
-    data, 
-    height = 200 
-  }: { 
-    data: Array<{ date: string; weight: number }>;
-    height?: number;
-  }) => {
-    if (data.length === 0) {
-      return (
-        <div className={`h-[${height}px] flex items-center justify-center text-muted-foreground`}>
-          אין נתונים להצגה
-        </div>
-      );
-    }
-
-    const padding = 50;
-    const chartWidth = 600;
-    const chartHeight = height;
-    const graphWidth = chartWidth - padding * 2;
-    const graphHeight = chartHeight - padding * 2;
-
-    const values = data.map(d => d.weight);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const range = maxValue - minValue || 1;
-
-    // Generate Y-axis labels
-    const yLabels = [];
-    const steps = 4;
-    for (let i = 0; i <= steps; i++) {
-      const value = minValue + (range * i / steps);
-      yLabels.push(value);
-    }
-
-    const points = data.map((d, i) => {
-      const x = padding + (i / (data.length - 1 || 1)) * graphWidth;
-      const y = padding + graphHeight - ((d.weight - minValue) / range) * graphHeight;
-      return { x, y, weight: d.weight, date: d.date };
-    });
-
-    const path = points
-      .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
-      .join(" ");
-
-    return (
-      <div className="w-full overflow-x-auto pb-2 scrollbar-hide">
-        <svg width={chartWidth} height={chartHeight} className="w-full min-w-[600px]">
-          {/* Grid lines and Y-axis labels */}
-          {yLabels.map((value, idx) => {
-            const ratio = (value - minValue) / range;
-            const y = padding + graphHeight - (ratio * graphHeight);
-            return (
-              <g key={idx}>
-                <line
-                  x1={padding}
-                  y1={y}
-                  x2={padding + graphWidth}
-                  y2={y}
-                  className="stroke-border"
-                  strokeWidth="1"
-                />
-                <text 
-                  x={padding - 10} 
-                  y={y + 4} 
-                  fontSize="12" 
-                  textAnchor="end" 
-                  className="fill-muted-foreground"
-                >
-                  {value.toFixed(1)}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Data line */}
-          <path
-            d={path}
-            fill="none"
-            className="stroke-primary"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {/* Data points */}
-          {points.map((point, i) => (
-            <g key={i}>
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r="5"
-                className="fill-primary stroke-background"
-                strokeWidth="2"
-              />
-            </g>
-          ))}
-        </svg>
-      </div>
-    );
-  };
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -343,7 +243,15 @@ function TraineeManagementPageContent() {
           <CardContent>
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-4">התקדמות משקל גוף</h3>
-              <LineChart data={weeklyWeights} height={200} />
+              <SimpleLineChart 
+                data={weeklyWeights} 
+                height={200}
+                chartWidth={600}
+                yAxisSteps={4}
+                useThemeColors={true}
+                unit="kg"
+                className="pb-2 scrollbar-hide"
+              />
             </div>
           </CardContent>
         </Card>

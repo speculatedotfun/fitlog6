@@ -131,11 +131,11 @@ export async function getSession() {
 }
 
 // Create trainee account (called by trainer)
+// Note: trainerId is no longer needed - it's taken from the authenticated session
 export async function createTraineeAccount(
   email: string,
   password: string,
-  name: string,
-  trainerId: string
+  name: string
 ) {
   const response = await fetch('/api/trainees/create', {
     method: 'POST',
@@ -146,7 +146,7 @@ export async function createTraineeAccount(
       email,
       password,
       name,
-      trainerId,
+      // trainerId is now taken from the authenticated session on the server
     }),
   });
 

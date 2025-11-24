@@ -14,6 +14,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { getWorkoutLogs, getBodyWeightHistory, saveBodyWeight } from "@/lib/db";
 import type { WorkoutLogWithDetails } from "@/lib/types";
+import { SimpleLineChart } from "@/components/ui/SimpleLineChart";
+import { isBenchPressExercise } from "@/lib/constants";
 
 // Calculate 1RM using Brzycki formula
 function calculate1RM(weight: number, reps: number): number {
@@ -47,26 +49,23 @@ function ProgressTrackingContent() {
     try {
       setLoading(true);
       
-      // Load weight history
-      const weights = await getBodyWeightHistory(user.id);
+      // Load data in parallel for better performance
+      const [weights, logs] = await Promise.all([
+        getBodyWeightHistory(user.id),
+        getWorkoutLogs(user.id)
+      ]);
+      
       setWeightHistory(weights);
-
-      // Load workout logs to calculate bench press 1RM
-      const logs = await getWorkoutLogs(user.id);
       
       // Find bench press exercises (search for variations)
-      const benchPressNames = ['לחיצת חזה', 'bench press', 'לחיצה בחזה', 'חזה', 'chest press'];
       const benchPressData: Array<{ date: string; oneRM: number }> = [];
       
       logs.forEach(log => {
         log.set_logs?.forEach(setLog => {
-          const exerciseName = setLog.exercise?.name?.toLowerCase() || '';
-          const muscleGroup = setLog.exercise?.muscle_group?.toLowerCase() || '';
-          const isBenchPress = benchPressNames.some(name => 
-            exerciseName.includes(name.toLowerCase())
-          ) || muscleGroup.includes('חזה') || muscleGroup.includes('chest');
+          const exerciseName = setLog.exercise?.name;
+          const muscleGroup = setLog.exercise?.muscle_group;
           
-          if (isBenchPress && setLog.weight_kg && setLog.reps) {
+          if (isBenchPressExercise(exerciseName, muscleGroup) && setLog.weight_kg && setLog.reps) {
             const oneRM = calculate1RM(setLog.weight_kg, setLog.reps);
             benchPressData.push({
               date: log.date,
@@ -185,112 +184,6 @@ function ProgressTrackingContent() {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
-  // Line Chart Component
-  const LineChart = ({ 
-    data, 
-    currentValue, 
-    unit = "kg",
-    height = 180 
-  }: { 
-    data: Array<{ date: string; value: number }>;
-    currentValue: number | null;
-    unit?: string;
-    height?: number;
-  }) => {
-    if (data.length === 0) {
-      return (
-        <div className="h-[180px] flex items-center justify-center text-gray-500">
-          אין נתונים להצגה
-        </div>
-      );
-    }
-
-    const padding = 50;
-    const chartWidth = 350;
-    const chartHeight = height;
-    const graphWidth = chartWidth - padding * 2;
-    const graphHeight = chartHeight - padding * 2;
-
-    const values = data.map(d => d.value);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const range = maxValue - minValue || 1;
-
-    // Generate Y-axis labels
-    const yLabels = [];
-    const steps = 3;
-    for (let i = 0; i <= steps; i++) {
-      const value = minValue + (range * i / steps);
-      yLabels.push(value);
-    }
-
-    const points = data.map((d, i) => {
-      const x = padding + (i / (data.length - 1 || 1)) * graphWidth;
-      const y = padding + graphHeight - ((d.value - minValue) / range) * graphHeight;
-      return { x, y, value: d.value, date: d.date };
-    });
-
-    const path = points
-      .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
-      .join(" ");
-
-    return (
-      <div className="w-full overflow-x-auto">
-        <svg width={chartWidth} height={chartHeight} className="w-full">
-          {/* Grid lines and Y-axis labels */}
-          {yLabels.map((value, idx) => {
-            const ratio = (value - minValue) / range;
-            const y = padding + graphHeight - (ratio * graphHeight);
-            return (
-              <g key={idx}>
-                <line
-                  x1={padding}
-                  y1={y}
-                  x2={padding + graphWidth}
-                  y2={y}
-                  stroke="#1e293b"
-                  strokeWidth="1"
-                />
-                <text 
-                  x={padding - 10} 
-                  y={y + 4} 
-                  fontSize="11" 
-                  textAnchor="end" 
-                  fill="#64748b"
-                >
-                  {value.toFixed(unit === "kg" ? 1 : 0)}{unit}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Data line */}
-          <path
-            d={path}
-            fill="none"
-            stroke="#00ff88"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {/* Data points */}
-          {points.map((point, i) => (
-            <g key={i}>
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r="4"
-                fill="#00ff88"
-                stroke="#0f1a2a"
-                strokeWidth="2"
-              />
-            </g>
-          ))}
-        </svg>
-      </div>
-    );
-  };
 
   const filteredWeightData = getFilteredWeightData();
   const filteredBenchPressData = getFilteredBenchPressData();
@@ -357,7 +250,7 @@ function ProgressTrackingContent() {
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <LineChart
+            <SimpleLineChart
               data={filteredWeightData.map(item => ({ date: item.date, value: item.weight }))}
               currentValue={currentWeight}
               unit="kg"
@@ -385,7 +278,7 @@ function ProgressTrackingContent() {
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <LineChart
+            <SimpleLineChart
               data={filteredBenchPressData.map(item => ({ date: item.date, value: item.oneRM }))}
               currentValue={currentBenchPress}
               unit="kg"

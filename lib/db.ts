@@ -17,6 +17,7 @@ import type {
   WorkoutLogWithDetails,
   RoutineWithExercises,
   NutritionMenu,
+  DailyNutritionLog,
 } from './types';
 
 // ============= ERROR HANDLING =============
@@ -62,6 +63,82 @@ export async function getTrainerTrainees(trainerId: string): Promise<User[]> {
 
   if (error) handleDatabaseError('getTrainerTrainees', error);
   return data || [];
+}
+
+// Optimized function to get trainees with their plans and last workout in one go
+export interface TraineeWithDetails {
+  id: string;
+  name: string;
+  email: string;
+  created_at: string;
+  planActive: boolean;
+  planName: string | null;
+  lastWorkout: string | null;
+}
+
+export async function getTrainerTraineesWithDetails(trainerId: string): Promise<TraineeWithDetails[]> {
+  try {
+    // 1. Get all trainees of the trainer
+    const { data: traineesList, error: traineesError } = await supabase
+      .from('users')
+      .select('id, name, email, created_at')
+      .eq('trainer_id', trainerId)
+      .eq('role', 'trainee')
+      .order('created_at', { ascending: false });
+
+    if (traineesError) handleDatabaseError('getTrainerTraineesWithDetails (trainees)', traineesError);
+    if (!traineesList || traineesList.length === 0) {
+      return [];
+    }
+
+    const traineeIds = traineesList.map(t => t.id);
+
+    // 2. Get all active plans for these trainees in one query
+    const { data: activePlans, error: plansError } = await supabase
+      .from('workout_plans')
+      .select('trainee_id, name')
+      .in('trainee_id', traineeIds)
+      .eq('is_active', true);
+
+    if (plansError) {
+      console.error('Error fetching plans:', plansError);
+      // Continue without plans if error
+    }
+
+    // 3. Get the most recent workout log for each trainee
+    // We'll get the latest log per trainee by ordering and grouping in memory
+    const { data: recentLogs, error: logsError } = await supabase
+      .from('workout_logs')
+      .select('user_id, date')
+      .in('user_id', traineeIds)
+      .order('date', { ascending: false });
+
+    if (logsError) {
+      console.error('Error fetching logs:', logsError);
+      // Continue without logs if error
+    }
+
+    // 4. Merge data in memory (much faster than network requests)
+    const mergedData: TraineeWithDetails[] = traineesList.map(trainee => {
+      const plan = activePlans?.find(p => p.trainee_id === trainee.id);
+      // Find the most recent log for this specific trainee
+      const lastLog = recentLogs?.find(l => l.user_id === trainee.id);
+
+      return {
+        id: trainee.id,
+        name: trainee.name,
+        email: trainee.email,
+        created_at: trainee.created_at,
+        planActive: !!plan,
+        planName: plan?.name || null,
+        lastWorkout: lastLog?.date || null,
+      };
+    });
+
+    return mergedData;
+  } catch (error) {
+    handleDatabaseError('getTrainerTraineesWithDetails', error);
+  }
 }
 
 export async function createTrainee(trainee: CreateUser): Promise<User> {
@@ -319,7 +396,7 @@ export async function deleteRoutineExercise(exerciseId: string): Promise<void> {
 }
 
 // ============= WORKOUT LOGS =============
-export async function getWorkoutLogs(traineeId: string, limit?: number): Promise<WorkoutLogWithDetails[]> {
+export async function getWorkoutLogs(traineeId: string, limit?: number, startDate?: string): Promise<WorkoutLogWithDetails[]> {
   let query = supabase
     .from('workout_logs')
     .select(`
@@ -333,13 +410,17 @@ export async function getWorkoutLogs(traineeId: string, limit?: number): Promise
     .eq('user_id', traineeId)
     .order('date', { ascending: false });
 
+  if (startDate) {
+    query = query.gte('date', startDate);
+  }
+
   if (limit) {
     query = query.limit(limit);
   }
 
   const { data, error } = await query;
 
-  if (error) throw error;
+  if (error) handleDatabaseError('getWorkoutLogs', error);
 
   return (data || []).map(log => ({
     ...log,
@@ -349,6 +430,58 @@ export async function getWorkoutLogs(traineeId: string, limit?: number): Promise
       exercise: sl.exercise,
     })),
   }));
+}
+
+// Optimized function to get workout logs for multiple trainees in one query
+export async function getWorkoutLogsForUsers(
+  traineeIds: string[],
+  startDate?: string
+): Promise<Map<string, WorkoutLogWithDetails[]>> {
+  if (traineeIds.length === 0) {
+    return new Map();
+  }
+
+  let query = supabase
+    .from('workout_logs')
+    .select(`
+      *,
+      routine:routines (*),
+      set_logs (
+        *,
+        exercise:exercise_library (*)
+      )
+    `)
+    .in('user_id', traineeIds)
+    .order('date', { ascending: false });
+
+  if (startDate) {
+    query = query.gte('date', startDate);
+  }
+
+  const { data, error } = await query;
+
+  if (error) handleDatabaseError('getWorkoutLogsForUsers', error);
+
+  // Group logs by trainee ID
+  const logsMap = new Map<string, WorkoutLogWithDetails[]>();
+  
+  (data || []).forEach(log => {
+    const traineeId = log.user_id;
+    if (!logsMap.has(traineeId)) {
+      logsMap.set(traineeId, []);
+    }
+    
+    logsMap.get(traineeId)!.push({
+      ...log,
+      routine: log.routine,
+      set_logs: (log.set_logs || []).map((sl: any) => ({
+        ...sl,
+        exercise: sl.exercise,
+      })),
+    });
+  });
+
+  return logsMap;
 }
 
 export async function getWorkoutLog(logId: string): Promise<WorkoutLogWithDetails | null> {
@@ -416,7 +549,7 @@ export async function getBodyWeightHistory(traineeId: string): Promise<Array<{ d
     .not('body_weight', 'is', null)
     .order('date', { ascending: false });
 
-  if (error) throw error;
+  if (error) handleDatabaseError('getBodyWeightHistory', error);
 
   // Group by date and get the latest weight for each date
   const weightMap = new Map<string, number>();
@@ -429,6 +562,51 @@ export async function getBodyWeightHistory(traineeId: string): Promise<Array<{ d
   return Array.from(weightMap.entries())
     .map(([date, weight]) => ({ date, weight }))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+// Optimized function to get body weight history for multiple trainees in one query
+export async function getBodyWeightHistoryForUsers(
+  traineeIds: string[]
+): Promise<Map<string, Array<{ date: string; weight: number }>>> {
+  if (traineeIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('workout_logs')
+    .select('user_id, date, body_weight')
+    .in('user_id', traineeIds)
+    .not('body_weight', 'is', null)
+    .order('date', { ascending: false });
+
+  if (error) handleDatabaseError('getBodyWeightHistoryForUsers', error);
+
+  // Group by trainee ID and date
+  const weightsMap = new Map<string, Map<string, number>>();
+  
+  (data || []).forEach(log => {
+    const traineeId = log.user_id;
+    if (!weightsMap.has(traineeId)) {
+      weightsMap.set(traineeId, new Map());
+    }
+    
+    const traineeWeights = weightsMap.get(traineeId)!;
+    if (!traineeWeights.has(log.date)) {
+      traineeWeights.set(log.date, log.body_weight);
+    }
+  });
+
+  // Convert to the expected format
+  const result = new Map<string, Array<{ date: string; weight: number }>>();
+  
+  weightsMap.forEach((dateMap, traineeId) => {
+    const weights = Array.from(dateMap.entries())
+      .map(([date, weight]) => ({ date, weight }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    result.set(traineeId, weights);
+  });
+
+  return result;
 }
 
 export async function saveBodyWeight(traineeId: string, weight: number): Promise<void> {
@@ -540,6 +718,118 @@ export async function updateNutritionMenu(traineeId: string, menu: NutritionMenu
     }
     throw error;
   }
+}
+
+// ============= DAILY NUTRITION LOGS =============
+export async function getDailyNutritionLog(traineeId: string, date?: string): Promise<DailyNutritionLog | null> {
+  const targetDate = date || new Date().toISOString().split('T')[0];
+  
+  const { data, error } = await supabase
+    .from('daily_nutrition_logs')
+    .select('*')
+    .eq('user_id', traineeId)
+    .eq('date', targetDate)
+    .maybeSingle();
+
+  if (error) {
+    // If table doesn't exist, return null (non-critical)
+    if (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('relation')) {
+      console.warn('daily_nutrition_logs table does not exist yet.');
+      return null;
+    }
+    throw error;
+  }
+  
+  return data || null;
+}
+
+export async function upsertDailyNutritionLog(
+  traineeId: string,
+  date: string,
+  updates: {
+    total_protein?: number | null;
+    total_carbs?: number | null;
+    total_fat?: number | null;
+    total_calories?: number | null;
+    notes?: string | null;
+  }
+): Promise<DailyNutritionLog> {
+  const targetDate = date || new Date().toISOString().split('T')[0];
+  
+  // First, try to get existing log
+  const existing = await getDailyNutritionLog(traineeId, targetDate);
+  
+  if (existing) {
+    // Update existing log
+    const { data, error } = await supabase
+      .from('daily_nutrition_logs')
+      .update({
+        total_protein: updates.total_protein ?? existing.total_protein,
+        total_carbs: updates.total_carbs ?? existing.total_carbs,
+        total_fat: updates.total_fat ?? existing.total_fat,
+        total_calories: updates.total_calories ?? existing.total_calories,
+        notes: updates.notes ?? existing.notes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('relation')) {
+        throw new DatabaseError('daily_nutrition_logs table does not exist. Please run the migration.', error);
+      }
+      throw error;
+    }
+    
+    return data;
+  } else {
+    // Create new log
+    const { data, error } = await supabase
+      .from('daily_nutrition_logs')
+      .insert({
+        user_id: traineeId,
+        date: targetDate,
+        total_protein: updates.total_protein ?? null,
+        total_carbs: updates.total_carbs ?? null,
+        total_fat: updates.total_fat ?? null,
+        total_calories: updates.total_calories ?? null,
+        notes: updates.notes ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('relation')) {
+        throw new DatabaseError('daily_nutrition_logs table does not exist. Please run the migration.', error);
+      }
+      throw error;
+    }
+    
+    return data;
+  }
+}
+
+export async function addToDailyNutritionLog(
+  traineeId: string,
+  date: string,
+  macros: {
+    protein: number;
+    carbs: number;
+    fat: number;
+    calories: number;
+  }
+): Promise<DailyNutritionLog> {
+  const existing = await getDailyNutritionLog(traineeId, date);
+  
+  const newTotals = {
+    total_protein: (existing?.total_protein || 0) + macros.protein,
+    total_carbs: (existing?.total_carbs || 0) + macros.carbs,
+    total_fat: (existing?.total_fat || 0) + macros.fat,
+    total_calories: (existing?.total_calories || 0) + macros.calories,
+  };
+  
+  return upsertDailyNutritionLog(traineeId, date, newTotals);
 }
 
 // ============= NUTRITION SWAPS =============

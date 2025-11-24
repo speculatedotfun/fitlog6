@@ -8,112 +8,17 @@ import { ArrowLeft, Loader2, Apple, Beef, Home, BarChart3, Users, Target, Settin
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { getNutritionMenu, getNutritionSwaps } from "@/lib/db";
+import { getNutritionMenu, getNutritionSwaps, addToDailyNutritionLog } from "@/lib/db";
 import type { NutritionMenu } from "@/lib/types";
-
-interface FoodItem {
-  id: string;
-  name: string;
-  category: string;
-  conversionFactor: number;
-  proteinPer100g: number;
-  carbsPer100g: number;
-  fatPer100g: number;
-  caloriesPer100g: number;
-}
-
-const foodDatabase: FoodItem[] = [
-  {
-    id: "rice",
-    name: "אורז",
-    category: "carbs",
-    conversionFactor: 1.0,
-    proteinPer100g: 2.7,
-    carbsPer100g: 28.2,
-    fatPer100g: 0.3,
-    caloriesPer100g: 130,
-  },
-  {
-    id: "pasta",
-    name: "פסטה",
-    category: "carbs",
-    conversionFactor: 0.8,
-    proteinPer100g: 5.0,
-    carbsPer100g: 25.0,
-    fatPer100g: 0.9,
-    caloriesPer100g: 131,
-  },
-  {
-    id: "oats",
-    name: "שיבולת שועל",
-    category: "carbs",
-    conversionFactor: 0.7,
-    proteinPer100g: 13.2,
-    carbsPer100g: 55.7,
-    fatPer100g: 6.5,
-    caloriesPer100g: 379,
-  },
-  {
-    id: "sweet_potato",
-    name: "בטטה",
-    category: "carbs",
-    conversionFactor: 1.2,
-    proteinPer100g: 1.6,
-    carbsPer100g: 20.1,
-    fatPer100g: 0.1,
-    caloriesPer100g: 86,
-  },
-  {
-    id: "chicken",
-    name: "חזה עוף",
-    category: "protein",
-    conversionFactor: 1.0,
-    proteinPer100g: 31.0,
-    carbsPer100g: 0.0,
-    fatPer100g: 3.6,
-    caloriesPer100g: 165,
-  },
-  {
-    id: "beef",
-    name: "בשר בקר",
-    category: "protein",
-    conversionFactor: 1.1,
-    proteinPer100g: 26.0,
-    carbsPer100g: 0.0,
-    fatPer100g: 15.0,
-    caloriesPer100g: 250,
-  },
-  {
-    id: "eggs",
-    name: "ביצים",
-    category: "protein",
-    conversionFactor: 0.9,
-    proteinPer100g: 13.0,
-    carbsPer100g: 1.1,
-    fatPer100g: 11.0,
-    caloriesPer100g: 155,
-  },
-  {
-    id: "cottage",
-    name: "קוטג'",
-    category: "protein",
-    conversionFactor: 0.85,
-    proteinPer100g: 11.0,
-    carbsPer100g: 3.4,
-    fatPer100g: 4.3,
-    caloriesPer100g: 98,
-  },
-  {
-    id: "tofu",
-    name: "טופו",
-    category: "protein",
-    conversionFactor: 1.5,
-    proteinPer100g: 8.0,
-    carbsPer100g: 1.9,
-    fatPer100g: 4.8,
-    caloriesPer100g: 76,
-  },
-];
+import { 
+  FoodItem, 
+  calculateMacros, 
+  calculateSwapAmount, 
+  calculateMacroDifferences,
+  getMatchQuality,
+  convertSwapToFoodItem 
+} from "@/lib/nutrition-utils";
+import { FoodSelectorCard } from "@/components/trainee/FoodSelectorCard";
 
 function NutritionCalculatorContent() {
   const { user } = useAuth();
@@ -125,24 +30,36 @@ function NutritionCalculatorContent() {
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [showTargetPicker, setShowTargetPicker] = useState(false);
   const [nutritionMenu, setNutritionMenu] = useState<NutritionMenu | null>(null);
+  const [foodDatabase, setFoodDatabase] = useState<FoodItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingSwap, setSavingSwap] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
-      loadNutritionMenu();
+      loadData();
     }
   }, [user?.id]);
 
-  const loadNutritionMenu = async () => {
+  const loadData = async () => {
     if (!user?.id) return;
 
     try {
       setLoading(true);
-      const menu = await getNutritionMenu(user.id);
+      // Load data in parallel
+      const [menu, swaps] = await Promise.all([
+        getNutritionMenu(user.id).catch(() => ({ meals: [] })),
+        getNutritionSwaps()
+      ]);
+      
       setNutritionMenu(menu || { meals: [] });
+      
+      // Convert swaps to FoodItem format
+      const formattedSwaps = swaps.map(convertSwapToFoodItem);
+      setFoodDatabase(formattedSwaps);
     } catch (error) {
-      console.error('Error loading nutrition menu:', error);
+      console.error('Error loading nutrition data:', error);
       setNutritionMenu({ meals: [] });
+      setFoodDatabase([]);
     } finally {
       setLoading(false);
     }
@@ -161,50 +78,59 @@ function NutritionCalculatorContent() {
     if (sourceFood && sourceAmount && targetFood) {
       const amount = parseFloat(sourceAmount);
       if (!isNaN(amount) && amount > 0) {
-        const calculatedAmount = (amount * targetFood.conversionFactor) / sourceFood.conversionFactor;
+        const calculatedAmount = calculateSwapAmount(sourceFood, amount, targetFood);
         setTargetAmount(calculatedAmount.toFixed(0));
       }
     }
   }, [sourceFood, sourceAmount, targetFood]);
 
-  const calculateMacros = (food: FoodItem, amount: number) => {
-    return {
-      protein: (food.proteinPer100g * amount) / 100,
-      carbs: (food.carbsPer100g * amount) / 100,
-      fat: (food.fatPer100g * amount) / 100,
-      calories: (food.caloriesPer100g * amount) / 100,
-    };
-  };
-
   const sourceMacros = sourceFood && sourceAmount ? calculateMacros(sourceFood, parseFloat(sourceAmount) || 0) : null;
   const targetMacros = targetFood && targetAmount ? calculateMacros(targetFood, parseFloat(targetAmount) || 0) : null;
 
   // Calculate differences
-  const calorieDiff = sourceMacros && targetMacros ? targetMacros.calories - sourceMacros.calories : 0;
-  const proteinDiff = sourceMacros && targetMacros ? targetMacros.protein - sourceMacros.protein : 0;
-  const carbsDiff = sourceMacros && targetMacros ? targetMacros.carbs - sourceMacros.carbs : 0;
-  const fatDiff = sourceMacros && targetMacros ? targetMacros.fat - sourceMacros.fat : 0;
+  const macroDiffs = sourceMacros && targetMacros 
+    ? calculateMacroDifferences(sourceMacros, targetMacros)
+    : { protein: 0, carbs: 0, fat: 0, calories: 0 };
 
   // Calculate match quality
-  const getMatchQuality = () => {
-    if (!sourceMacros || !targetMacros) return { text: "—", color: "gray" };
-    
-    const proteinMatch = Math.abs(proteinDiff) / sourceMacros.protein;
-    const carbsMatch = Math.abs(carbsDiff) / (sourceMacros.carbs || 1);
-    const fatMatch = Math.abs(fatDiff) / sourceMacros.fat;
-    const calorieMatch = Math.abs(calorieDiff) / sourceMacros.calories;
-    
-    const avgMatch = (proteinMatch + carbsMatch + fatMatch + calorieMatch) / 4;
-    
-    if (avgMatch < 0.1) return { text: "מצוינת", color: "green" };
-    if (avgMatch < 0.2) return { text: "טובה", color: "green" };
-    if (avgMatch < 0.3) return { text: "בינונית", color: "yellow" };
-    return { text: "נמוכה", color: "red" };
-  };
-
-  const matchQuality = getMatchQuality();
+  const matchQuality = sourceMacros && targetMacros 
+    ? getMatchQuality(sourceMacros, targetMacros)
+    : { text: "—", color: "gray" as const, score: 0 };
 
   // Get target values (use source as target for comparison)
+  const handleLogSwap = async () => {
+    if (!user?.id || !targetFood || !targetAmount || !targetMacros) return;
+
+    try {
+      setSavingSwap(true);
+      
+      // Add the target food macros to today's nutrition log
+      await addToDailyNutritionLog(
+        user.id,
+        new Date().toISOString().split('T')[0],
+        {
+          protein: targetMacros.protein,
+          carbs: targetMacros.carbs,
+          fat: targetMacros.fat,
+          calories: targetMacros.calories,
+        }
+      );
+
+      alert('ההחלפה נרשמה בהצלחה ביומן התזונה!');
+      
+      // Optionally reset the form
+      // setSourceFood(null);
+      // setTargetFood(null);
+      // setSourceAmount("100");
+      // setTargetAmount("");
+    } catch (error: any) {
+      console.error('Error logging swap:', error);
+      alert(error.message || 'שגיאה בשמירת ההחלפה. אנא נסה שוב.');
+    } finally {
+      setSavingSwap(false);
+    }
+  };
+
   const proteinTarget = sourceMacros?.protein || 0;
   const carbsTarget = sourceMacros?.carbs || 0;
   const fatTarget = sourceMacros?.fat || 0;
@@ -233,65 +159,20 @@ function NutritionCalculatorContent() {
       <div className="max-w-2xl mx-auto p-4 space-y-6">
         {/* Food Comparison Cards */}
         <div className="grid grid-cols-2 gap-4">
-          {/* Source Card */}
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-white text-sm">מקור:</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-center">
-                <div className="w-16 h-16 bg-[#0f1a2a] rounded-lg flex items-center justify-center">
-                  <Apple className="h-8 w-8 text-gray-400" />
-                </div>
-              </div>
-              <div className="text-center">
-                <p className="text-white font-semibold text-lg">
-                  {sourceFood?.name || "בחר מזון"}
-                </p>
-                {sourceFood && sourceAmount && (
-                  <p className="text-gray-400 text-sm mt-1">
-                    ({sourceAmount} גרם)
-                  </p>
-                )}
-              </div>
-              <Button
-                className="w-full bg-[#00ff88] hover:bg-[#00e677] text-black font-semibold h-9"
-                onClick={() => setShowSourcePicker(true)}
-              >
-                שינוי
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Target Card */}
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-white text-sm">יעד:</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-center">
-                <div className="w-16 h-16 bg-[#0f1a2a] rounded-lg flex items-center justify-center">
-                  <Beef className="h-8 w-8 text-gray-400" />
-                </div>
-              </div>
-              <div className="text-center">
-                <p className="text-white font-semibold text-lg">
-                  {targetFood?.name || "בחר מזון"}
-                </p>
-                {targetFood && targetAmount && (
-                  <p className="text-gray-400 text-sm mt-1">
-                    ({targetAmount} גרם)
-                  </p>
-                )}
-              </div>
-              <Button
-                className="w-full bg-[#00ff88] hover:bg-[#00e677] text-black font-semibold h-9"
-                onClick={() => setShowTargetPicker(true)}
-              >
-                שינוי
-              </Button>
-            </CardContent>
-          </Card>
+          <FoodSelectorCard
+            title="מקור:"
+            foodName={sourceFood?.name || null}
+            amount={sourceFood && sourceAmount ? sourceAmount : null}
+            icon={Apple}
+            onSelect={() => setShowSourcePicker(true)}
+          />
+          <FoodSelectorCard
+            title="יעד:"
+            foodName={targetFood?.name || null}
+            amount={targetFood && targetAmount ? targetAmount : null}
+            icon={Beef}
+            onSelect={() => setShowTargetPicker(true)}
+          />
         </div>
 
         {/* Nutritional Breakdown */}
@@ -403,8 +284,8 @@ function NutritionCalculatorContent() {
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-gray-400">הפרש קלוריות:</span>
-                <span className={`text-white font-semibold ${calorieDiff < 0 ? 'text-green-400' : calorieDiff > 0 ? 'text-red-400' : ''}`}>
-                  {calorieDiff > 0 ? '+' : ''}{calorieDiff.toFixed(0)} קק"ל
+                <span className={`text-white font-semibold ${macroDiffs.calories < 0 ? 'text-green-400' : macroDiffs.calories > 0 ? 'text-red-400' : ''}`}>
+                  {macroDiffs.calories > 0 ? '+' : ''}{macroDiffs.calories.toFixed(0)} קק"ל
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -426,12 +307,17 @@ function NutritionCalculatorContent() {
           <div className="space-y-3">
             <Button
               className="w-full bg-[#00ff88] hover:bg-[#00e677] text-black font-bold h-14 text-lg"
-              onClick={() => {
-                // TODO: Implement swap in diary
-                alert('החלפה ביומן - יתווסף בהמשך');
-              }}
+              onClick={handleLogSwap}
+              disabled={savingSwap || !user?.id}
             >
-              בצע החלפה ביומן
+              {savingSwap ? (
+                <>
+                  <Loader2 className="h-5 w-5 ml-2 animate-spin" />
+                  שומר...
+                </>
+              ) : (
+                'בצע החלפה ביומן'
+              )}
             </Button>
             <Button
               variant="outline"
@@ -476,19 +362,25 @@ function NutritionCalculatorContent() {
                 })
               ) : (
                 <div className="space-y-2">
-                  {foodDatabase.map((food) => (
-                    <button
-                      key={food.id}
-                      className="w-full text-right p-3 bg-[#0f1a2a] hover:bg-gray-800 rounded-lg text-white transition-colors"
-                      onClick={() => {
-                        setSourceFood(food);
-                        setSourceAmount("100");
-                        setShowSourcePicker(false);
-                      }}
-                    >
-                      <div className="font-semibold">{food.name}</div>
-                    </button>
-                  ))}
+                  {foodDatabase.length === 0 ? (
+                    <div className="text-center text-gray-400 py-4">
+                      אין מזונות זמינים. אנא הוסף מזונות למסד הנתונים.
+                    </div>
+                  ) : (
+                    foodDatabase.map((food) => (
+                      <button
+                        key={food.id}
+                        className="w-full text-right p-3 bg-[#0f1a2a] hover:bg-gray-800 rounded-lg text-white transition-colors"
+                        onClick={() => {
+                          setSourceFood(food);
+                          setSourceAmount("100");
+                          setShowSourcePicker(false);
+                        }}
+                      >
+                        <div className="font-semibold">{food.name}</div>
+                      </button>
+                    ))
+                  )}
                 </div>
               )}
             </CardContent>
@@ -503,20 +395,26 @@ function NutritionCalculatorContent() {
               <CardTitle className="text-white">בחר מזון יעד</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {foodDatabase
-                .filter(f => f.id !== sourceFood?.id)
-                .map((food) => (
-                  <button
-                    key={food.id}
-                    className="w-full text-right p-3 bg-[#0f1a2a] hover:bg-gray-800 rounded-lg text-white transition-colors"
-                    onClick={() => {
-                      setTargetFood(food);
-                      setShowTargetPicker(false);
-                    }}
-                  >
-                    <div className="font-semibold">{food.name}</div>
-                  </button>
-                ))}
+              {foodDatabase.length === 0 ? (
+                <div className="text-center text-gray-400 py-4">
+                  אין מזונות זמינים. אנא הוסף מזונות למסד הנתונים.
+                </div>
+              ) : (
+                foodDatabase
+                  .filter(f => f.id !== sourceFood?.id)
+                  .map((food) => (
+                    <button
+                      key={food.id}
+                      className="w-full text-right p-3 bg-[#0f1a2a] hover:bg-gray-800 rounded-lg text-white transition-colors"
+                      onClick={() => {
+                        setTargetFood(food);
+                        setShowTargetPicker(false);
+                      }}
+                    >
+                      <div className="font-semibold">{food.name}</div>
+                    </button>
+                  ))
+              )}
             </CardContent>
           </Card>
         </div>
