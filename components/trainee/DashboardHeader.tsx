@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -14,6 +14,7 @@ export function DashboardHeader() {
         <div className="flex flex-row justify-between items-center w-full" style={{ height: '56px', gap: '38px' }}>
           <div className="flex items-center" style={{ gap: '12px', width: '158px', height: '56px' }}>
             <Avatar className="w-14 h-14 flex-shrink-0">
+              <AvatarImage src={user?.profile_image_url || undefined} />
               <AvatarFallback className="bg-grey-g5 text-grey-g1">
                 {user?.name?.charAt(0) || 'U'}
               </AvatarFallback>

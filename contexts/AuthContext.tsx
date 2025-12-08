@@ -97,7 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
           role: (session.user.user_metadata?.role || 'trainer') as 'trainer' | 'trainee',
           trainer_id: null,
-          profile_image_url: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -164,7 +163,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
             role: (session.user.user_metadata?.role || 'trainer') as 'trainer' | 'trainee',
             trainer_id: null,
-            profile_image_url: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };

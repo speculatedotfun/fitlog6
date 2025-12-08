@@ -104,7 +104,6 @@ export async function getCurrentUser(): Promise<User | null> {
         name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
         role: (authUser.user_metadata?.role || 'trainer') as 'trainer' | 'trainee',
         trainer_id: null,
-        profile_image_url: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -117,7 +116,6 @@ export async function getCurrentUser(): Promise<User | null> {
       name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
       role: (authUser.user_metadata?.role || 'trainer') as 'trainer' | 'trainee',
       trainer_id: null,
-      profile_image_url: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
