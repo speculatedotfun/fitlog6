@@ -8,6 +8,7 @@ export interface User {
   role: UserRole;
   trainer_id: string | null;
   name: string;
+  profile_image_url: string | null;
   created_at: string;
   updated_at: string;
 }
