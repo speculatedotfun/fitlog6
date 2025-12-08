@@ -23,16 +23,16 @@ export default function ProgressPage() {
     }
 
     const loadData = async () => {
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
         const logs = await getWorkoutLogs(user.id, 365); // Last year
         setWorkoutLogs(logs || []);
       } catch (err) {
         console.error("Error loading progress data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
 
     loadData();
   }, [user?.id]);

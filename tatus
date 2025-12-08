@@ -1,0 +1,5 @@
+[33m8deac47[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Fix TypeScript error: Add profile_image_url to temp User objects in AuthContext and auth.ts
+[33m1c84393[m Update Next.js version to 16.0.7
+[33mc766b96[m Fix build errors and bugs: add missing page, fix TypeScript errors, restore animation keyframes, fix weight calculation logic, and improve stats recalculation
+[33m5aa3210[m Fix TypeScript error in nutrition page - use correct FoodItem properties
+[33mab92276[m Update UI components, layouts, and pages across trainer and trainee sections
