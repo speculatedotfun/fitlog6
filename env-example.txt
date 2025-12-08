@@ -4,8 +4,10 @@
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 
-# Optional: Service Role Key (for admin operations)
-# Only use this on the server-side, never expose it to the client
-# SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+# REQUIRED: Service Role Key (for image uploads and admin operations)
+# Get this from: Supabase Dashboard → Project Settings → API → service_role key
+# ⚠️ IMPORTANT: Never expose this key to the client! Only use it server-side.
+# Copy this file to .env.local and fill in your actual values
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
 

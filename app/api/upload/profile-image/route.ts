@@ -43,11 +43,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Use admin client if available, otherwise use regular client
-    const client = supabaseAdmin || createClient(
-      supabaseUrl, 
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    );
+    // Always use admin client for server-side operations to bypass RLS
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { 
+          error: 'Server configuration error: SUPABASE_SERVICE_ROLE_KEY is required for image uploads',
+          errorCode: 'MISSING_SERVICE_KEY'
+        },
+        { status: 500 }
+      );
+    }
+    
+    const client = supabaseAdmin;
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -104,10 +111,24 @@ export async function POST(request: Request) {
 
     if (updateError) {
       console.error('Update error:', updateError);
+      
+      // Check if it's an RLS error
+      if (updateError.message?.includes('row-level security') || updateError.code === '42501') {
+        return NextResponse.json(
+          { 
+            error: 'RLS policy error. Please run fix-users-rls-policy.sql in Supabase SQL Editor.',
+            errorCode: 'RLS_POLICY_ERROR',
+            details: updateError.message
+          },
+          { status: 403 }
+        );
+      }
+      
       // Still return success since image was uploaded
       return NextResponse.json({
         url: imageUrl,
         warning: 'Image uploaded but failed to update user record',
+        error: updateError.message
       });
     }
 
