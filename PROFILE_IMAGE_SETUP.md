@@ -15,14 +15,18 @@ ADD COLUMN IF NOT EXISTS profile_image_url TEXT;
 
 5. לחץ על **Run**
 
-## שלב 2: יצירת Storage Bucket
+## שלב 2: יצירת Storage Bucket (חובה!)
+
+⚠️ **זה השלב החשוב ביותר!** ללא ה-bucket, העלאת התמונות לא תעבוד.
 
 1. ב-Supabase Dashboard, לחץ על **Storage** בתפריט השמאלי
-2. לחץ על **New bucket**
+2. לחץ על **New bucket** (כפתור כחול בפינה הימנית העליונה)
 3. מלא את הפרטים:
-   - **Name**: `avatars`
-   - **Public bucket**: ✅ כן (סמן את זה כדי שהתמונות יהיו נגישות)
+   - **Name**: `avatars` (חשוב: בדיוק את השם הזה!)
+   - **Public bucket**: ✅ **כן** (חובה לסמן את זה כדי שהתמונות יהיו נגישות)
 4. לחץ על **Create bucket**
+
+✅ **אחרי יצירת ה-bucket, תראה אותו ברשימת ה-buckets**
 
 ## שלב 3: הגדרת Storage Policies
 

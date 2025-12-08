@@ -406,6 +406,15 @@ function SettingsPageContent() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Check for bucket not found error
+        if (data.errorCode === 'BUCKET_NOT_FOUND') {
+          showToast(
+            '❌ ה-bucket לא קיים. אנא צור את ה-bucket "avatars" ב-Supabase Storage. ראה PROFILE_IMAGE_SETUP.md להוראות.',
+            "error",
+            5000
+          );
+          return;
+        }
         throw new Error(data.error || 'Failed to upload image');
       }
 

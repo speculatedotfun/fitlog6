@@ -68,8 +68,23 @@ export async function POST(request: Request) {
 
     if (uploadError) {
       console.error('Upload error:', uploadError);
+      
+      // Check if bucket doesn't exist
+      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found')) {
+        return NextResponse.json(
+          { 
+            error: 'Bucket not found. Please create the "avatars" bucket in Supabase Storage. See PROFILE_IMAGE_SETUP.md for instructions.',
+            errorCode: 'BUCKET_NOT_FOUND'
+          },
+          { status: 404 }
+        );
+      }
+      
       return NextResponse.json(
-        { error: uploadError.message || 'Failed to upload image' },
+        { 
+          error: uploadError.message || 'Failed to upload image',
+          errorCode: 'UPLOAD_ERROR'
+        },
         { status: 500 }
       );
     }
