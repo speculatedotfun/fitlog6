@@ -5,7 +5,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export async function createServerSupabaseClient() {
   const { cookies } = await import('next/headers');
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   return createServerClient(
     supabaseUrl || '',
