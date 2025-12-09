@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useTransition } from "react";
 import { 
   Loader2, FileText, Users, Activity, TrendingUp, AlertCircle,
   BarChart3, ChevronLeft, ArrowUpRight, Plus, Dumbbell, Calendar, 
@@ -186,8 +186,10 @@ export default function TrainerDashboard() {
   const [workoutLogs, setWorkoutLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('week');
+  const [isPending, startTransition] = useTransition();
 
   const trainerId = user?.id || "";
+  const isLoading = loading || authLoading || isPending;
 
   const getDateRange = useCallback((filter: TimeFilter): { start: Date | null; end: Date | null } => {
     const now = new Date();
@@ -224,40 +226,49 @@ export default function TrainerDashboard() {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
+    const signal = controller.signal;
     
     const loadData = async () => {
       try {
         setLoading(true);
         
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout")), 10000)
-        );
+        const timeoutPromise = new Promise<"timeout">((resolve) => {
+          const id = setTimeout(() => resolve("timeout"), 10000);
+          signal?.addEventListener('abort', () => clearTimeout(id), { once: true });
+        });
+
+        const { start } = getDateRange(timeFilter);
+        const startDateParam = start ? start.toISOString().split('T')[0] : undefined;
         
         const trainees = await getTrainerTrainees(trainerId);
+        if (signal.aborted) return;
         const traineeIds = trainees.map(t => t.id);
         
         const dataPromise = Promise.all([
           getTrainerStats(trainerId),
           getTraineesWithStatus(trainerId),
-          traineeIds.length > 0 ? getWorkoutLogsForUsers(traineeIds, undefined) : Promise.resolve([]),
+          traineeIds.length > 0 ? getWorkoutLogsForUsers(traineeIds, startDateParam, 500) : Promise.resolve([]),
         ]);
         
-        const result = await Promise.race([dataPromise, timeoutPromise]);
-        const [statsData, statusData, logsData] = result;
+        const raceResult = await Promise.race([dataPromise, timeoutPromise]);
+        if (signal.aborted || raceResult === "timeout") {
+          setLoading(false);
+          return;
+        }
+
+        const [statsData, statusData, logsData] = raceResult as Awaited<typeof dataPromise>;
         
         const logsArray = logsData instanceof Map 
           ? Array.from(logsData.values()).flat()
           : Array.isArray(logsData) ? logsData : [];
         
-        if (!cancelled) {
-          setStats(statsData);
-          setTraineesWithStatus(statusData);
-          setWorkoutLogs(logsArray);
-        }
+        setStats(statsData);
+        setTraineesWithStatus(statusData);
+        setWorkoutLogs(logsArray);
       } catch (err) {
         console.error("Error loading dashboard data:", err);
-        if (!cancelled) {
+        if (!signal.aborted) {
           setStats({
             activeTrainees: 0,
             workoutsToday: { completed: 0, total: 0 },
@@ -268,18 +279,18 @@ export default function TrainerDashboard() {
           setWorkoutLogs([]);
         }
       } finally {
-        if (!cancelled) {
+        if (!signal.aborted) {
           setLoading(false);
         }
       }
     };
 
-    loadData();
+    startTransition(() => {
+      loadData();
+    });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [trainerId, authLoading]);
+    return () => controller.abort();
+  }, [trainerId, authLoading, timeFilter, getDateRange]);
 
   const filteredWorkoutLogs = useMemo(() => {
     const { start, end } = getDateRange(timeFilter);
@@ -516,7 +527,7 @@ export default function TrainerDashboard() {
     }
   };
 
-  if (authLoading || loading) {
+  if (isLoading) {
     return (
       <>
         <style jsx global>{`

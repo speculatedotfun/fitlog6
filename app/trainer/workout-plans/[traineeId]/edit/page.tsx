@@ -41,10 +41,8 @@ function WorkoutPlanEditorContent() {
   const [expandedRoutines, setExpandedRoutines] = useState<Record<string, boolean>>({});
   const [selectedRoutineForExercise, setSelectedRoutineForExercise] = useState<string | null>(null);
   
-  // Mobile responsive states
   const [showRightSidebar, setShowRightSidebar] = useState(false);
 
-  // Load data
   useEffect(() => {
     if (traineeId && user?.id) {
       loadData();
@@ -61,7 +59,6 @@ function WorkoutPlanEditorContent() {
       let plan = await getActiveWorkoutPlan(traineeId);
       
       if (!plan) {
-        // Create a new plan if none exists
         plan = await createWorkoutPlan({
           trainee_id: traineeId,
           trainer_id: user!.id,
@@ -78,7 +75,6 @@ function WorkoutPlanEditorContent() {
       const routinesData = await getRoutinesWithExercises(plan.id);
       setRoutines(routinesData);
       
-      // Expand first routine by default
       if (routinesData.length > 0) {
         setExpandedRoutines({ [routinesData[0].id]: true });
       }
@@ -92,7 +88,6 @@ function WorkoutPlanEditorContent() {
       setLoading(false);
     }
   };
-
 
   const toggleRoutine = (routineId: string) => {
     setExpandedRoutines(prev => ({
@@ -122,7 +117,6 @@ function WorkoutPlanEditorContent() {
         order_index: routines.length,
       });
 
-      // Refresh to get full data
       const updatedRoutines = await getRoutinesWithExercises(workoutPlan.id);
       setRoutines(updatedRoutines);
       setExpandedRoutines(prev => ({ ...prev, [newRoutine.id]: true }));
@@ -137,7 +131,6 @@ function WorkoutPlanEditorContent() {
     const routine = routines.find(r => r.id === routineId);
     if (!routine) return;
 
-    // Optimistic UI: Update state immediately
     const tempExerciseId = `temp-${Date.now()}`;
     const newRoutineExercise = {
       id: tempExerciseId,
@@ -176,13 +169,11 @@ function WorkoutPlanEditorContent() {
         order_index: routine.routine_exercises.length,
       });
 
-      // Replace temp with real data
       const updatedRoutines = await getRoutinesWithExercises(workoutPlan.id);
       setRoutines(updatedRoutines);
       setShowRightSidebar(false);
       setSelectedRoutineForExercise(null);
     } catch (error: any) {
-      // Rollback on error
       setRoutines(prev => prev.map(r => 
         r.id === routineId 
           ? { ...r, routine_exercises: r.routine_exercises.filter(re => re.id !== tempExerciseId) }
@@ -202,11 +193,9 @@ function WorkoutPlanEditorContent() {
     }
 
     try {
-      // Check if exercise already exists
       let exercise = await getExerciseByName(exerciseData.name.trim());
       
       if (!exercise) {
-        // Create new exercise
         exercise = await createExercise({
           name: exerciseData.name.trim(),
           muscle_group: exerciseData.muscle_group,
@@ -216,11 +205,9 @@ function WorkoutPlanEditorContent() {
           created_by: user?.id || null,
         });
 
-        // Update exercise library optimistically
         setExerciseLibrary(prev => [...prev, exercise!]);
       }
 
-      // Add exercise to routine (this will handle optimistic UI)
       await handleAddExercise(routineId, exercise);
     } catch (error: any) {
       alert("שגיאה ביצירת תרגיל: " + error.message);
@@ -229,7 +216,6 @@ function WorkoutPlanEditorContent() {
   };
 
   const handleUpdateExercise = async (exerciseId: string, updates: any) => {
-    // Optimistic UI: Update state immediately
     const previousRoutines = [...routines];
     setRoutines(prev => prev.map(routine => ({
       ...routine,
@@ -240,13 +226,11 @@ function WorkoutPlanEditorContent() {
 
     try {
       await updateRoutineExercise(exerciseId, updates);
-      // Optionally refresh to get server state, but UI already updated
       if (workoutPlan) {
         const updatedRoutines = await getRoutinesWithExercises(workoutPlan.id);
         setRoutines(updatedRoutines);
       }
     } catch (error: any) {
-      // Rollback on error
       setRoutines(previousRoutines);
       alert("שגיאה בעדכון תרגיל: " + error.message);
       throw error;
@@ -254,7 +238,6 @@ function WorkoutPlanEditorContent() {
   };
 
   const handleDeleteExercise = async (exerciseId: string) => {
-    // Optimistic UI: Remove from state immediately
     const previousRoutines = [...routines];
     setRoutines(prev => prev.map(routine => ({
       ...routine,
@@ -263,13 +246,11 @@ function WorkoutPlanEditorContent() {
 
     try {
       await deleteRoutineExercise(exerciseId);
-      // Optionally refresh to get server state, but UI already updated
       if (workoutPlan) {
         const updatedRoutines = await getRoutinesWithExercises(workoutPlan.id);
         setRoutines(updatedRoutines);
       }
     } catch (error: any) {
-      // Rollback on error
       setRoutines(previousRoutines);
       alert("שגיאה במחיקת תרגיל: " + error.message);
       throw error;
@@ -284,16 +265,15 @@ function WorkoutPlanEditorContent() {
       await updateWorkoutPlan(workoutPlan.id, {
         name: workoutPlan.name,
       });
-      alert("התוכנית נשמרה בהצלחה!");
+      alert("✅ התוכנית נשמרה בהצלחה!");
     } catch (error: any) {
-      alert("שגיאה בשמירת התוכנית: " + error.message);
+      alert("❌ שגיאה בשמירת התוכנית: " + error.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleUpdateExerciseImage = async (exerciseId: string, imageUrl: string) => {
-    // Find the exercise from routine_exercises
     const routineExercise = routines
       .flatMap(r => r.routine_exercises)
       .find(re => re.id === exerciseId);
@@ -303,7 +283,6 @@ function WorkoutPlanEditorContent() {
       return;
     }
 
-    // Optimistic UI: Update image immediately
     const previousRoutines = [...routines];
     setRoutines(prev => prev.map(routine => ({
       ...routine,
@@ -314,7 +293,6 @@ function WorkoutPlanEditorContent() {
       )
     })));
 
-    // Update exercise library too
     setExerciseLibrary(prev => prev.map(ex =>
       ex.id === routineExercise.exercise!.id
         ? { ...ex, image_url: imageUrl.trim() || null }
@@ -326,7 +304,6 @@ function WorkoutPlanEditorContent() {
         image_url: imageUrl.trim() || null,
       });
       
-      // Refresh to ensure consistency
       if (workoutPlan) {
         const updatedRoutines = await getRoutinesWithExercises(workoutPlan.id);
         setRoutines(updatedRoutines);
@@ -334,7 +311,6 @@ function WorkoutPlanEditorContent() {
         setExerciseLibrary(exercises);
       }
     } catch (error: any) {
-      // Rollback on error
       setRoutines(previousRoutines);
       alert("שגיאה בעדכון תמונה: " + error.message);
     }
@@ -342,112 +318,164 @@ function WorkoutPlanEditorContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center" dir="rtl">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-[#1A1D2E] flex items-center justify-center" dir="rtl">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-[#5B7FFF]" />
+          <p className="text-[#9CA3AF] font-outfit font-semibold">טוען עורך תוכניות...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-full" dir="rtl">
-      {/* Center Editor */}
-      <main className="flex-1 overflow-y-auto pb-32">
-        {/* Top Bar - Editor specific */}
-        <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href={`/trainer/trainee/${traineeId}`}>
-              <Button variant="ghost" size="icon" className="text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">עורך תוכניות אימון</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
+    <>
+      <style jsx global>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        .slide-up {
+          animation: slideUp 0.6s ease-out forwards;
+          opacity: 0;
+        }
+        
+        .animate-fade-in {
+          animation: fadeIn 0.4s ease-out forwards;
+        }
+        
+        .bg-texture {
+          background-image: 
+            radial-gradient(circle at 20% 30%, rgba(91, 127, 255, 0.03) 0%, transparent 50%),
+            radial-gradient(circle at 80% 70%, rgba(91, 127, 255, 0.02) 0%, transparent 50%);
+        }
+      `}</style>
+
+      <div className="flex flex-col lg:flex-row h-full bg-[#1A1D2E] bg-texture" dir="rtl">
+        {/* Center Editor */}
+        <main className="flex-1 overflow-y-auto pb-32">
+          {/* Top Bar */}
+          <div 
+            className="sticky top-0 z-10 bg-[#2D3142] border-b-2 border-[#3D4058] px-4 py-4 flex items-center justify-between slide-up"
+            style={{ boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)' }}
+          >
+            <div className="flex items-center gap-3">
+              <Link href={`/trainer/trainee/${traineeId}`}>
+                <button className="w-10 h-10 rounded-xl bg-[#1A1D2E] hover:bg-[#3D4058] border-2 border-[#3D4058] flex items-center justify-center transition-all hover:scale-105">
+                  <ArrowLeft className="h-5 w-5 text-white" />
+                </button>
+              </Link>
+              <div>
+                <h1 className="text-xl font-outfit font-bold text-white">עורך תוכניות אימון</h1>
+                {trainee && (
+                  <p className="text-sm font-outfit text-[#9CA3AF]">{trainee.name}</p>
+                )}
+              </div>
+            </div>
+            <button
               onClick={handleSavePlan}
               disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold"
+              className="bg-gradient-to-br from-[#5B7FFF] to-[#4A5FCC] hover:from-[#6B8EFF] hover:to-[#5A6FDD] text-white px-5 py-2.5 rounded-xl font-outfit font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+              style={{ boxShadow: '0 8px 32px rgba(91, 127, 255, 0.4)' }}
             >
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   שומר...
                 </>
               ) : (
                 <>
-                  <Save className="h-4 w-4 ml-2" />
+                  <Save className="h-4 w-4" />
                   שמור תוכנית
                 </>
               )}
-            </Button>
+            </button>
           </div>
-        </div>
 
           {/* Plan Structure */}
-          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-            <div className="mb-4">
-              <label className="text-sm text-gray-600 dark:text-slate-400 mb-2 block">שם התוכנית:</label>
+          <div className="p-4 sm:p-6 space-y-6">
+            <div 
+              className="slide-up"
+              style={{ animationDelay: '100ms' }}
+            >
+              <label className="text-sm font-outfit font-semibold text-[#9CA3AF] mb-2 block">
+                שם התוכנית:
+              </label>
               <Input
                 value={workoutPlan?.name || ""}
                 onChange={(e) => setWorkoutPlan({ ...workoutPlan, name: e.target.value })}
-                className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white max-w-md"
+                className="bg-[#2D3142] border-2 border-[#3D4058] text-white placeholder:text-[#9CA3AF] max-w-md rounded-xl font-outfit focus:border-[#5B7FFF] transition-all"
                 placeholder="שם התוכנית"
               />
             </div>
 
-            <div className="space-y-3 sm:space-y-4">
-              {routines.map((routine) => (
-                <WorkoutRoutineCard
+            <div className="space-y-4">
+              {routines.map((routine, index) => (
+                <div
                   key={routine.id}
-                  routine={routine}
-                  isExpanded={!!expandedRoutines[routine.id]}
-                  onToggle={() => toggleRoutine(routine.id)}
-                  onAddExercise={() => {
-                    setSelectedRoutineForExercise(routine.id);
-                    setShowRightSidebar(true);
-                    // Scroll to top of sidebar on mobile
-                    if (window.innerWidth < 1024) {
-                      setTimeout(() => {
-                        const sidebar = document.querySelector('aside');
-                        if (sidebar) {
-                          sidebar.scrollTop = 0;
-                        }
-                      }, 100);
-                    }
-                  }}
-                  onUpdateExercise={handleUpdateExercise}
-                  onDeleteExercise={handleDeleteExercise}
-                  onUpdateExerciseImage={handleUpdateExerciseImage}
-                />
+                  className="slide-up"
+                  style={{ animationDelay: `${(index + 2) * 50}ms` }}
+                >
+                  <WorkoutRoutineCard
+                    routine={routine}
+                    isExpanded={!!expandedRoutines[routine.id]}
+                    onToggle={() => toggleRoutine(routine.id)}
+                    onAddExercise={() => {
+                      setSelectedRoutineForExercise(routine.id);
+                      setShowRightSidebar(true);
+                      if (window.innerWidth < 1024) {
+                        setTimeout(() => {
+                          const sidebar = document.querySelector('aside');
+                          if (sidebar) {
+                            sidebar.scrollTop = 0;
+                          }
+                        }, 100);
+                      }
+                    }}
+                    onUpdateExercise={handleUpdateExercise}
+                    onDeleteExercise={handleDeleteExercise}
+                    onUpdateExerciseImage={handleUpdateExerciseImage}
+                  />
+                </div>
               ))}
               
-              <Button
+              <button
                 onClick={handleAddRoutine}
-                className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800"
+                className="w-full bg-[#2D3142] border-2 border-[#3D4058] border-dashed text-white hover:bg-[#3D4058] hover:border-[#5B7FFF] rounded-xl py-4 font-outfit font-semibold text-sm transition-all flex items-center justify-center gap-2 slide-up hover:scale-[1.02]"
+                style={{ 
+                  animationDelay: `${(routines.length + 2) * 50}ms`,
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
+                }}
               >
-                <Plus className="h-4 w-4 ml-2" />
-                הוסף רוטינה
-              </Button>
+                <Plus className="h-5 w-5" />
+                הוסף רוטינה חדשה
+              </button>
             </div>
           </div>
         </main>
 
-      {/* Right Sidebar - Exercise Library */}
-      <ExerciseLibrarySidebar
-        exercises={exerciseLibrary}
-        routines={routines}
-        selectedRoutineId={selectedRoutineForExercise}
-        onSelectExercise={async (routineId, exercise) => {
-          await handleAddExercise(routineId, exercise);
-          setShowRightSidebar(false);
-          setSelectedRoutineForExercise(null);
-        }}
-        onCreateAndAdd={handleCreateAndAddExercise}
-        onClose={() => setShowRightSidebar(false)}
-        onClearSelection={() => setSelectedRoutineForExercise(null)}
-        isOpen={showRightSidebar}
-      />
-    </div>
+        {/* Right Sidebar - Exercise Library */}
+        <ExerciseLibrarySidebar
+          exercises={exerciseLibrary}
+          routines={routines}
+          selectedRoutineId={selectedRoutineForExercise}
+          onSelectExercise={async (routineId, exercise) => {
+            await handleAddExercise(routineId, exercise);
+            setShowRightSidebar(false);
+            setSelectedRoutineForExercise(null);
+          }}
+          onCreateAndAdd={handleCreateAndAddExercise}
+          onClose={() => setShowRightSidebar(false)}
+          onClearSelection={() => setSelectedRoutineForExercise(null)}
+          isOpen={showRightSidebar}
+        />
+      </div>
+    </>
   );
 }
 
@@ -458,4 +486,3 @@ export default function WorkoutPlanEditorPage() {
     </ProtectedRoute>
   );
 }
-

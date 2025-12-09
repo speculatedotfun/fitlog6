@@ -44,14 +44,12 @@ export function ExerciseLibrarySidebar({
   const filterExercises = () => {
     let filtered = exercises;
 
-    // Filter by search query
     if (searchQuery.trim()) {
       filtered = filtered.filter(ex =>
         ex.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Filter by muscle group
     if (selectedMuscleGroup !== "הכל") {
       filtered = filtered.filter(ex => ex.muscle_group === selectedMuscleGroup);
     }
@@ -66,12 +64,12 @@ export function ExerciseLibrarySidebar({
 
   const handleCreateAndAdd = async () => {
     if (!newExerciseName.trim()) {
-      alert("אנא הזן שם תרגיל");
+      alert("⚠️ אנא הזן שם תרגיל");
       return;
     }
 
     if (!selectedRoutineId) {
-      alert("אנא בחר רוטינה קודם");
+      alert("⚠️ אנא בחר רוטינה קודם");
       return;
     }
 
@@ -83,7 +81,6 @@ export function ExerciseLibrarySidebar({
         image_url: newExerciseImageUrl.trim(),
       });
 
-      // Reset form
       setNewExerciseName("");
       setNewExerciseMuscleGroup("כללי");
       setNewExerciseImageUrl("");
@@ -91,7 +88,7 @@ export function ExerciseLibrarySidebar({
       setSearchQuery("");
     } catch (error) {
       console.error("Error creating exercise:", error);
-      alert("שגיאה ביצירת תרגיל");
+      alert("❌ שגיאה ביצירת תרגיל");
     } finally {
       setCreatingExercise(false);
     }
@@ -103,7 +100,6 @@ export function ExerciseLibrarySidebar({
     }
   };
 
-  // Check if search query doesn't match any exercise
   const searchQueryNotMatched = searchQuery.trim() &&
     !filteredExercises.some(ex =>
       ex.name.toLowerCase() === searchQuery.toLowerCase().trim()
@@ -111,93 +107,120 @@ export function ExerciseLibrarySidebar({
     !showNewExerciseForm;
 
   return (
-    <aside className={`
-      ${isOpen ? 'flex' : 'hidden'} lg:flex
-      lg:w-80 flex-col bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800
-      fixed lg:relative inset-y-0 left-0 z-30 lg:z-auto
-    `}>
-      <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ספריית תרגילים</h2>
-        {onClose && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800"
-            onClick={onClose}
-          >
-            <XIcon className="h-5 w-5" />
-          </Button>
-        )}
-      </div>
+    <>
+      <style jsx>{`
+        @keyframes slideInRight {
+          from { opacity: 0; transform: translateX(-30px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        .slide-in-right {
+          animation: slideInRight 0.4s ease-out forwards;
+        }
+        
+        .animate-fade-in {
+          animation: fadeIn 0.3s ease-out forwards;
+        }
+      `}</style>
 
-      <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-slate-800 space-y-3 sm:space-y-4">
-        <div className="relative">
-          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-slate-500" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              // Auto-fill new exercise name if typing
-              if (e.target.value.trim() && !filteredExercises.some(ex =>
-                ex.name.toLowerCase() === e.target.value.toLowerCase().trim()
-              )) {
-                setNewExerciseName(e.target.value.trim());
-              }
-            }}
-            placeholder="חפש תרגיל או הקלד שם חדש..."
-            className="bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white pr-10"
-          />
+      <aside className={`
+        ${isOpen ? 'flex' : 'hidden'} lg:flex
+        lg:w-80 flex-col bg-[#2D3142] border-l-2 border-[#3D4058]
+        fixed lg:relative inset-y-0 left-0 z-30 lg:z-auto
+        slide-in-right
+      `}
+      style={{ boxShadow: '0 0 32px rgba(0, 0, 0, 0.3)' }}
+      >
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b-2 border-[#3D4058] flex items-center justify-between bg-[#1A1D2E]">
+          <h2 className="text-lg font-outfit font-bold text-white">ספריית תרגילים</h2>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="lg:hidden w-8 h-8 rounded-lg bg-[#2D3142] hover:bg-[#3D4058] border border-[#3D4058] flex items-center justify-center transition-all"
+            >
+              <XIcon className="h-4 w-4 text-white" />
+            </button>
+          )}
         </div>
 
-        {/* Show create button if search doesn't match */}
-        {searchQueryNotMatched && (
-          <Button
-            onClick={() => {
-              setShowNewExerciseForm(true);
-              setNewExerciseName(searchQuery.trim());
-            }}
-            className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold"
-            size="sm"
-          >
-            <Plus className="h-4 w-4 ml-2" />
-            צור תרגיל חדש: "{searchQuery.trim()}"
-          </Button>
-        )}
+        {/* Search & Filters */}
+        <div className="p-4 sm:p-5 border-b-2 border-[#3D4058] space-y-3 bg-[#1A1D2E]">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#9CA3AF]" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value.trim() && !filteredExercises.some(ex =>
+                  ex.name.toLowerCase() === e.target.value.toLowerCase().trim()
+                )) {
+                  setNewExerciseName(e.target.value.trim());
+                }
+              }}
+              placeholder="חפש תרגיל או הקלד שם חדש..."
+              className="bg-[#2D3142] border-2 border-[#3D4058] text-white placeholder:text-[#9CA3AF] pr-10 rounded-xl font-outfit focus:border-[#5B7FFF] transition-all"
+            />
+          </div>
 
-        {/* Add New Exercise Button */}
-        {!showNewExerciseForm && !searchQueryNotMatched && (
-          <Button
-            onClick={() => {
-              setShowNewExerciseForm(true);
-              setNewExerciseName(searchQuery.trim() || "");
-            }}
-            className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold"
-            size="sm"
-          >
-            <Plus className="h-4 w-4 ml-2" />
-            הוסף תרגיל חדש
-          </Button>
-        )}
+          {/* Create New Exercise Button (from search) */}
+          {searchQueryNotMatched && (
+            <button
+              onClick={() => {
+                setShowNewExerciseForm(true);
+                setNewExerciseName(searchQuery.trim());
+              }}
+              className="w-full bg-gradient-to-br from-[#5B7FFF] to-[#4A5FCC] hover:from-[#6B8EFF] hover:to-[#5A6FDD] text-white px-4 py-2.5 rounded-xl font-outfit font-semibold text-sm transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
+              style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.3)' }}
+            >
+              <Plus className="h-4 w-4" />
+              צור תרגיל חדש: "{searchQuery.trim()}"
+            </button>
+          )}
 
-        {/* New Exercise Form */}
-        {showNewExerciseForm && (
-          <Card className="bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-800">
-            <CardContent className="pt-4 space-y-3">
+          {/* Add New Exercise Button */}
+          {!showNewExerciseForm && !searchQueryNotMatched && (
+            <button
+              onClick={() => {
+                setShowNewExerciseForm(true);
+                setNewExerciseName(searchQuery.trim() || "");
+              }}
+              className="w-full bg-gradient-to-br from-[#5B7FFF] to-[#4A5FCC] hover:from-[#6B8EFF] hover:to-[#5A6FDD] text-white px-4 py-2.5 rounded-xl font-outfit font-semibold text-sm transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
+              style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.3)' }}
+            >
+              <Plus className="h-4 w-4" />
+              הוסף תרגיל חדש
+            </button>
+          )}
+
+          {/* New Exercise Form */}
+          {showNewExerciseForm && (
+            <div className="bg-[#2D3142] border-2 border-[#3D4058] rounded-xl p-4 space-y-3 animate-fade-in">
               <div>
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">שם התרגיל:</label>
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block">
+                  שם התרגיל:
+                </label>
                 <Input
                   value={newExerciseName}
                   onChange={(e) => setNewExerciseName(e.target.value)}
                   placeholder="לדוגמה: סקוואט"
-                  className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm"
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white placeholder:text-[#9CA3AF] text-sm rounded-lg font-outfit focus:border-[#5B7FFF]"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">קבוצת שרירים:</label>
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block">
+                  קבוצת שרירים:
+                </label>
                 <select
                   value={newExerciseMuscleGroup}
                   onChange={(e) => setNewExerciseMuscleGroup(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm rounded px-3 py-2"
+                  className="w-full bg-[#1A1D2E] border-2 border-[#3D4058] text-white text-sm rounded-lg px-3 py-2 font-outfit focus:outline-none focus:border-[#5B7FFF] transition-all"
                 >
                   <option value="כללי">כללי</option>
                   <option value="חזה">חזה</option>
@@ -210,22 +233,22 @@ export function ExerciseLibrarySidebar({
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">
-                  <ImageIcon className="inline h-3 w-3 ml-1" />
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block flex items-center gap-1">
+                  <ImageIcon className="h-3 w-3" />
                   URL תמונה (אופציונלי):
                 </label>
                 <Input
                   value={newExerciseImageUrl}
                   onChange={(e) => setNewExerciseImageUrl(e.target.value)}
                   placeholder="https://example.com/image.jpg"
-                  className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm"
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white placeholder:text-[#9CA3AF] text-sm rounded-lg font-outfit focus:border-[#5B7FFF]"
                 />
                 {newExerciseImageUrl && (
                   <div className="mt-2">
                     <img
                       src={newExerciseImageUrl}
                       alt="תצוגה מקדימה"
-                      className="w-20 h-20 rounded object-cover border border-gray-200 dark:border-slate-800"
+                      className="w-20 h-20 rounded-lg object-cover border-2 border-[#3D4058]"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
@@ -233,113 +256,127 @@ export function ExerciseLibrarySidebar({
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button
+              <div className="flex gap-2 pt-2">
+                <button
                   onClick={handleCreateAndAdd}
                   disabled={creatingExercise || !newExerciseName.trim() || !selectedRoutineId}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold"
-                  size="sm"
+                  className="flex-1 bg-gradient-to-br from-[#5B7FFF] to-[#4A5FCC] hover:from-[#6B8EFF] hover:to-[#5A6FDD] text-white px-4 py-2.5 rounded-lg font-outfit font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.3)' }}
                 >
                   {creatingExercise ? (
                     <>
-                      <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       יוצר...
                     </>
                   ) : (
                     <>
-                      <Plus className="h-4 w-4 ml-2" />
+                      <Plus className="h-4 w-4" />
                       צור והוסף
                     </>
                   )}
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={() => {
                     setShowNewExerciseForm(false);
                     setNewExerciseName("");
                     setNewExerciseMuscleGroup("כללי");
                     setNewExerciseImageUrl("");
                   }}
-                  variant="outline"
-                  className="border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
-                  size="sm"
+                  className="w-10 h-10 rounded-lg bg-[#1A1D2E] hover:bg-[#3D4058] border-2 border-[#3D4058] flex items-center justify-center transition-all"
                 >
-                  <XIcon className="h-4 w-4" />
-                </Button>
+                  <XIcon className="h-4 w-4 text-white" />
+                </button>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          {getMuscleGroups().map((group) => (
-            <Button
-              key={group}
-              size="sm"
-              variant={selectedMuscleGroup === group ? "default" : "outline"}
-              onClick={() => setSelectedMuscleGroup(group)}
-              className={
-                selectedMuscleGroup === group
-                  ? "bg-blue-600 text-white"
-                  : "border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
-              }
-            >
-              {group}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2 sm:space-y-3">
-        {selectedRoutineId && (
-          <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-xs text-blue-700 dark:text-blue-400 font-semibold mb-1">מוסיף לרוטינה:</p>
-            <p className="text-sm text-gray-900 dark:text-white">
-              {routines.find(r => r.id === selectedRoutineId)?.letter || ''} - {routines.find(r => r.id === selectedRoutineId)?.name || ''}
-            </p>
-            {onClearSelection && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onClearSelection}
-                className="mt-2 text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 h-6 px-2"
-              >
-                <XIcon className="h-3 w-3 ml-1" />
-                ביטול בחירה
-              </Button>
-            )}
-          </div>
-        )}
-        {filteredExercises.map((exercise) => (
-          <div
-            key={exercise.id}
-            className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer border border-gray-200 dark:border-slate-800"
-            onClick={() => handleExerciseClick(exercise)}
-          >
-            <GripVertical className="h-5 w-5 text-gray-400 dark:text-slate-500" />
-            <div className="flex-1">
-              <p className="text-gray-900 dark:text-white text-sm">{exercise.name}</p>
-              <p className="text-gray-500 dark:text-slate-400 text-xs">{exercise.muscle_group}</p>
             </div>
-            {exercise.image_url ? (
-              <img
-                src={exercise.image_url}
-                alt={exercise.name}
-                className="w-12 h-12 rounded object-cover"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded bg-gray-200 dark:bg-slate-700 flex items-center justify-center">
-                <span className="text-gray-500 dark:text-slate-400 text-xs">תמונה</span>
+          )}
+
+          {/* Muscle Group Filters */}
+          <div className="flex flex-wrap gap-2">
+            {getMuscleGroups().map((group) => (
+              <button
+                key={group}
+                onClick={() => setSelectedMuscleGroup(group)}
+                className={`
+                  px-3 py-1.5 rounded-lg font-outfit font-semibold text-xs transition-all
+                  ${selectedMuscleGroup === group
+                    ? 'bg-[#5B7FFF] text-white shadow-lg shadow-[#5B7FFF]/30'
+                    : 'bg-[#2D3142] text-[#9CA3AF] border border-[#3D4058] hover:bg-[#3D4058] hover:text-white'
+                  }
+                `}
+              >
+                {group}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Exercise List */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2">
+          {/* Selected Routine Indicator */}
+          {selectedRoutineId && (
+            <div 
+              className="mb-3 p-3 bg-[#5B7FFF]/10 border-2 border-[#5B7FFF]/30 rounded-xl animate-fade-in"
+              style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.1)' }}
+            >
+              <p className="text-xs font-outfit font-semibold text-[#5B7FFF] mb-1">
+                מוסיף לרוטינה:
+              </p>
+              <p className="text-sm font-outfit font-bold text-white">
+                {routines.find(r => r.id === selectedRoutineId)?.letter || ''} - {routines.find(r => r.id === selectedRoutineId)?.name || ''}
+              </p>
+              {onClearSelection && (
+                <button
+                  onClick={onClearSelection}
+                  className="mt-2 text-xs font-outfit text-[#9CA3AF] hover:text-white flex items-center gap-1 transition-colors"
+                >
+                  <XIcon className="h-3 w-3" />
+                  ביטול בחירה
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Exercise Cards */}
+          {filteredExercises.map((exercise, index) => (
+            <div
+              key={exercise.id}
+              onClick={() => handleExerciseClick(exercise)}
+              className="flex items-center gap-3 p-3 bg-[#1A1D2E] rounded-xl hover:bg-[#3D4058] cursor-pointer border-2 border-[#3D4058] hover:border-[#5B7FFF] transition-all group"
+              style={{ 
+                animationDelay: `${index * 30}ms`,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+              }}
+            >
+              <GripVertical className="h-5 w-5 text-[#9CA3AF] group-hover:text-[#5B7FFF] transition-colors" />
+              <div className="flex-1">
+                <p className="text-white text-sm font-outfit font-semibold">{exercise.name}</p>
+                <p className="text-[#9CA3AF] text-xs font-outfit">{exercise.muscle_group}</p>
               </div>
-            )}
-          </div>
-        ))}
-        {filteredExercises.length === 0 && !searchQuery.trim() && (
-          <div className="text-center text-gray-500 dark:text-slate-400 py-8">
-            לא נמצאו תרגילים
-          </div>
-        )}
-      </div>
-    </aside>
+              {exercise.image_url ? (
+                <img
+                  src={exercise.image_url}
+                  alt={exercise.name}
+                  className="w-12 h-12 rounded-lg object-cover border-2 border-[#3D4058] group-hover:border-[#5B7FFF] transition-all"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-[#2D3142] border-2 border-[#3D4058] flex items-center justify-center group-hover:border-[#5B7FFF] transition-all">
+                  <span className="text-[#9CA3AF] text-[10px] font-outfit">תמונה</span>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Empty State */}
+          {filteredExercises.length === 0 && !searchQuery.trim() && (
+            <div className="text-center text-[#9CA3AF] py-12 font-outfit">
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#2D3142] border-2 border-[#3D4058] flex items-center justify-center">
+                <Search className="h-8 w-8 text-[#9CA3AF]" />
+              </div>
+              <p className="font-semibold">לא נמצאו תרגילים</p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
-

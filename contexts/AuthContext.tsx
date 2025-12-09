@@ -17,6 +17,57 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+// ============= CACHE HELPERS (extracted to eliminate duplication) =============
+
+interface CachedUserData {
+  user: User;
+  timestamp: number;
+}
+
+const CACHE_KEY = 'cached_user';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function cacheUser(userData: User): void {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+      user: userData,
+      timestamp: Date.now(),
+    }));
+  } catch {
+    // Ignore storage errors (e.g., private mode, quota exceeded)
+  }
+}
+
+function getCachedUser(): User | null {
+  try {
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    
+    const { user, timestamp }: CachedUserData = JSON.parse(cached);
+    
+    // Check if cache is still valid
+    if (Date.now() - timestamp < CACHE_DURATION) {
+      return user;
+    }
+    
+    // Cache expired
+    sessionStorage.removeItem(CACHE_KEY);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clearUserCache(): void {
+  try {
+    sessionStorage.removeItem(CACHE_KEY);
+  } catch {
+    // Ignore errors
+  }
+}
+
+// ============= AUTH PROVIDER =============
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,179 +75,97 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Helper to cache user data in sessionStorage
-    const cacheUser = (userData: User) => {
+    // Helper to load user data from database (with caching)
+    async function loadUserFromDB(userId: string): Promise<void> {
       try {
-        sessionStorage.setItem('cached_user', JSON.stringify({
-          user: userData,
-          timestamp: Date.now(),
-        }));
-      } catch (e) {
-        // Ignore storage errors (e.g., in private mode)
-      }
-    };
-
-    // Helper to get cached user data
-    const getCachedUser = (): User | null => {
-      try {
-        const cached = sessionStorage.getItem('cached_user');
-        if (!cached) return null;
-        
-        const { user: cachedUser, timestamp } = JSON.parse(cached);
-        // Cache is valid for 5 minutes
-        if (Date.now() - timestamp < 5 * 60 * 1000) {
-          return cachedUser;
+        const currentUser = await getCurrentUser();
+        if (mounted && currentUser) {
+          setUser(currentUser);
+          cacheUser(currentUser);
         }
-        return null;
       } catch {
-        return null;
+        // Silently fail - temp user or cached user continues to work
       }
-    };
+    }
 
-    // Initial load - check session first
-    const initAuth = async () => {
+    // Helper to create temporary user from auth session
+    function createTempUser(session: any): User {
+      return {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+        role: (session.user.user_metadata?.role || 'trainer') as 'trainer' | 'trainee',
+        trainer_id: null,
+        profile_image_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    // Initialize auth state
+    async function initAuth(): Promise<void> {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!mounted) return;
 
         if (!session?.user) {
-          // No session - user is not logged in
+          // No session - user not logged in
           setUser(null);
           setLoading(false);
-          // Clear cache
-          try {
-            sessionStorage.removeItem('cached_user');
-          } catch {}
+          clearUserCache();
           return;
         }
 
-        // Check cache first
+        // Check cache first for instant load
         const cachedUser = getCachedUser();
         if (cachedUser && cachedUser.id === session.user.id) {
           setUser(cachedUser);
           setLoading(false);
-          // Still refresh in background
-          getCurrentUser()
-            .then((currentUser) => {
-              if (mounted && currentUser) {
-                setUser(currentUser);
-                cacheUser(currentUser);
-              }
-            })
-            .catch(() => {
-              // Silently fail - use cached user
-            });
+          // Refresh in background to get latest data
+          loadUserFromDB(session.user.id);
           return;
         }
 
-        // Session exists - create user from auth data immediately
-        const tempUser: User = {
-          id: session.user.id,
-          email: session.user.email || '',
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-          role: (session.user.user_metadata?.role || 'trainer') as 'trainer' | 'trainee',
-          trainer_id: null,
-          profile_image_url: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        
-        // Set user first, then use a useEffect-like pattern to end loading
-        // This ensures user is set before loading becomes false
+        // No valid cache - create temp user for immediate UI render
+        const tempUser = createTempUser(session);
         setUser(tempUser);
-        // Use queueMicrotask to ensure user state update is processed first
-        queueMicrotask(() => {
-          if (mounted) {
-            setLoading(false);
-          }
-        });
-
-        // Load real user data from DB in background (non-blocking)
-        getCurrentUser()
-          .then((currentUser) => {
-            if (mounted && currentUser) {
-              setUser(currentUser);
-              cacheUser(currentUser);
-            }
-          })
-          .catch(() => {
-            // Keep temp user - app continues to work
-          });
+        setLoading(false);
+        
+        // Load real user data in background
+        loadUserFromDB(session.user.id);
       } catch {
         if (mounted) {
           setUser(null);
           setLoading(false);
         }
       }
-    };
+    }
 
+    // Start initialization
     initAuth();
 
-    // Listen for auth changes
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_OUT' || !session) {
         setUser(null);
         setLoading(false);
+        clearUserCache();
         return;
       }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
-          // Helper to cache user data
-          const cacheUser = (userData: User) => {
-            try {
-              sessionStorage.setItem('cached_user', JSON.stringify({
-                user: userData,
-                timestamp: Date.now(),
-              }));
-            } catch (e) {
-              // Ignore storage errors
-            }
-          };
-
-          // Create user from auth data first
-          const tempUser: User = {
-            id: session.user.id,
-            email: session.user.email || '',
-            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-            role: (session.user.user_metadata?.role || 'trainer') as 'trainer' | 'trainee',
-            trainer_id: null,
-            profile_image_url: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          
-          // Set user first, then end loading
+          // Create temp user for immediate UI render
+          const tempUser = createTempUser(session);
           setUser(tempUser);
-          queueMicrotask(() => {
-            if (mounted) {
-              setLoading(false);
-            }
-          });
+          setLoading(false);
+          
+          // Load real user data in background
+          loadUserFromDB(session.user.id);
         }
-        
-        // Load real user data from DB in background
-        getCurrentUser()
-          .then((currentUser) => {
-            if (mounted && currentUser) {
-              setUser(currentUser);
-              // Cache the user data
-              try {
-                sessionStorage.setItem('cached_user', JSON.stringify({
-                  user: currentUser,
-                  timestamp: Date.now(),
-                }));
-              } catch (e) {
-                // Ignore storage errors
-              }
-            }
-          })
-          .catch(() => {
-            // Silently fail
-          });
       }
     });
 
@@ -210,10 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setLoading(false);
-    // Clear cache
-    try {
-      sessionStorage.removeItem('cached_user');
-    } catch {}
+    clearUserCache();
   };
 
   return (

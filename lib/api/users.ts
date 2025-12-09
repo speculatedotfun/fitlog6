@@ -3,6 +3,7 @@ import type { User, CreateUser } from '../types';
 import { handleDatabaseError } from './errors';
 
 // ============= USERS =============
+
 export async function getTrainerTrainees(trainerId: string): Promise<User[]> {
   const { data, error } = await supabase
     .from('users')
@@ -15,7 +16,8 @@ export async function getTrainerTrainees(trainerId: string): Promise<User[]> {
   return data || [];
 }
 
-// Optimized function to get trainees with their plans and last workout in one go
+// ============= TRAINEES WITH DETAILS =============
+
 export interface TraineeWithDetails {
   id: string;
   name: string;
@@ -26,66 +28,67 @@ export interface TraineeWithDetails {
   lastWorkout: string | null;
 }
 
+// OPTIMIZED: Uses Map for O(1) lookups instead of O(n²) .find() calls
 export async function getTrainerTraineesWithDetails(trainerId: string): Promise<TraineeWithDetails[]> {
   try {
-    // 1. Get all trainees of the trainer
-    const { data: traineesList, error: traineesError } = await supabase
-      .from('users')
-      .select('id, name, email, created_at')
-      .eq('trainer_id', trainerId)
-      .eq('role', 'trainee')
-      .order('created_at', { ascending: false });
+    // Fetch all data in parallel
+    const [traineesResult, plansResult, logsResult] = await Promise.all([
+      supabase
+        .from('users')
+        .select('id, name, email, created_at')
+        .eq('trainer_id', trainerId)
+        .eq('role', 'trainee')
+        .order('created_at', { ascending: false }),
+      
+      supabase
+        .from('workout_plans')
+        .select('trainee_id, name')
+        .eq('trainer_id', trainerId)
+        .eq('is_active', true),
+      
+      supabase
+        .from('workout_logs')
+        .select('user_id, date')
+        .order('date', { ascending: false })
+    ]);
 
-    if (traineesError) handleDatabaseError('getTrainerTraineesWithDetails (trainees)', traineesError);
-    if (!traineesList || traineesList.length === 0) {
+    if (traineesResult.error) {
+      handleDatabaseError('getTrainerTraineesWithDetails (trainees)', traineesResult.error);
+    }
+
+    const traineesList = traineesResult.data || [];
+    if (traineesList.length === 0) {
       return [];
     }
 
-    const traineeIds = traineesList.map(t => t.id);
+    const traineeIds = new Set(traineesList.map(t => t.id));
 
-    // 2. Get all active plans for these trainees in one query
-    const { data: activePlans, error: plansError } = await supabase
-      .from('workout_plans')
-      .select('trainee_id, name')
-      .in('trainee_id', traineeIds)
-      .eq('is_active', true);
+    // Create efficient lookup maps - O(1) access instead of O(n) .find()
+    const planMap = new Map(
+      (plansResult.data || []).map(p => [p.trainee_id, p.name])
+    );
 
-    if (plansError) {
-      console.error('Error fetching plans:', plansError);
-      // Continue without plans if error
-    }
-
-    // 3. Get the most recent workout log for each trainee
-    const { data: recentLogs, error: logsError } = await supabase
-      .from('workout_logs')
-      .select('user_id, date')
-      .in('user_id', traineeIds)
-      .order('date', { ascending: false });
-
-    if (logsError) {
-      console.error('Error fetching logs:', logsError);
-      // Continue without logs if error
-    }
-
-    // 4. Merge data in memory (much faster than network requests)
-    const mergedData: TraineeWithDetails[] = traineesList.map(trainee => {
-      const plan = activePlans?.find(p => p.trainee_id === trainee.id);
-      const lastLog = recentLogs?.find(l => l.user_id === trainee.id);
-
-      return {
-        id: trainee.id,
-        name: trainee.name,
-        email: trainee.email,
-        created_at: trainee.created_at,
-        planActive: !!plan,
-        planName: plan?.name || null,
-        lastWorkout: lastLog?.date || null,
-      };
+    // Group logs by user and get only the most recent for each
+    const lastWorkoutMap = new Map<string, string>();
+    (logsResult.data || []).forEach(log => {
+      if (traineeIds.has(log.user_id) && !lastWorkoutMap.has(log.user_id)) {
+        lastWorkoutMap.set(log.user_id, log.date);
+      }
     });
 
-    return mergedData;
+    // Merge data using O(1) Map lookups
+    return traineesList.map(trainee => ({
+      id: trainee.id,
+      name: trainee.name,
+      email: trainee.email,
+      created_at: trainee.created_at,
+      planActive: planMap.has(trainee.id),
+      planName: planMap.get(trainee.id) || null,
+      lastWorkout: lastWorkoutMap.get(trainee.id) || null,
+    }));
   } catch (error) {
     handleDatabaseError('getTrainerTraineesWithDetails', error);
+    return [];
   }
 }
 
@@ -111,5 +114,13 @@ export async function getUser(userId: string): Promise<User | null> {
   return data;
 }
 
-
-
+// ============= PERFORMANCE NOTES =============
+/*
+  RECOMMENDED INDEXES for optimal performance:
+  
+  CREATE INDEX idx_users_trainer_role ON users(trainer_id, role);
+  CREATE INDEX idx_workout_plans_trainee_active ON workout_plans(trainee_id, is_active);
+  CREATE INDEX idx_workout_logs_user_date ON workout_logs(user_id, date DESC);
+  
+  These indexes significantly improve query performance for trainer dashboards.
+*/

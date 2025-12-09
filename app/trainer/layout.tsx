@@ -10,7 +10,6 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -270,7 +269,6 @@ export default function TrainerLayout({
             </Link>
 
             <div className="flex items-center gap-3">
-              <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="outline-none focus:outline-none rounded-full transition-all hover:scale-105 active:scale-95">

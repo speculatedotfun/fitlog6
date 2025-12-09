@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, X, Image as ImageIcon } from "lucide-react";
+import { Save, X, Image as ImageIcon, Edit2, Trash2 } from "lucide-react";
 import type { RoutineExercise } from "@/lib/types";
 
 interface RoutineExerciseItemProps {
@@ -42,21 +42,21 @@ export function RoutineExerciseItem({
       setIsEditing(false);
     } catch (error) {
       console.error("Error saving exercise:", error);
-      alert("שגיאה בשמירת התרגיל");
+      alert("❌ שגיאה בשמירת התרגיל");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm("האם אתה בטוח שברצונך למחוק תרגיל זה?")) return;
+    if (!confirm("⚠️ האם אתה בטוח שברצונך למחוק תרגיל זה?")) return;
     
     try {
       setIsDeleting(true);
       await onDelete(exercise.id);
     } catch (error) {
       console.error("Error deleting exercise:", error);
-      alert("שגיאה במחיקת התרגיל");
+      alert("❌ שגיאה במחיקת התרגיל");
     } finally {
       setIsDeleting(false);
     }
@@ -67,23 +67,32 @@ export function RoutineExerciseItem({
     
     try {
       await onUpdateImage(exercise.id, imageUrl);
+      alert("✅ התמונה נשמרה בהצלחה!");
     } catch (error) {
       console.error("Error saving image:", error);
-      alert("שגיאה בשמירת התמונה");
+      alert("❌ שגיאה בשמירת התמונה");
     }
   };
 
   if (isEditing) {
     return (
-      <div className="border-b border-gray-200 dark:border-slate-800 pb-4 last:border-0">
+      <div className="border-b-2 border-[#3D4058] pb-4 last:border-0">
         <div className="flex items-start gap-3 sm:gap-4">
-          <div className="flex-1">
-            <h4 className="text-gray-900 dark:text-white font-semibold mb-3">
-              {index + 1}. {exercise.exercise?.name || 'תרגיל לא ידוע'}
-            </h4>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="flex-1 space-y-4">
+            {/* Exercise Title */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-[#5B7FFF] flex items-center justify-center">
+                <span className="text-white font-outfit font-bold text-sm">{index + 1}</span>
+              </div>
+              <h4 className="text-white font-outfit font-bold text-base">
+                {exercise.exercise?.name || 'תרגיל לא ידוע'}
+              </h4>
+            </div>
+
+            {/* Exercise Parameters */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">סטים:</label>
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block">סטים:</label>
                 <Input
                   type="number"
                   value={values.target_sets || 0}
@@ -91,11 +100,11 @@ export function RoutineExerciseItem({
                     ...values,
                     target_sets: parseInt(e.target.value) || 0
                   })}
-                  className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm"
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white text-sm rounded-lg font-outfit focus:border-[#5B7FFF]"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">חזרות:</label>
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block">חזרות:</label>
                 <div className="flex gap-1">
                   <Input
                     type="number"
@@ -104,10 +113,10 @@ export function RoutineExerciseItem({
                       ...values,
                       target_reps_min: parseInt(e.target.value) || 0
                     })}
-                    className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm"
-                    placeholder="מינימום"
+                    className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white text-sm rounded-lg font-outfit focus:border-[#5B7FFF]"
+                    placeholder="Min"
                   />
-                  <span className="text-gray-400 dark:text-slate-500 self-center">-</span>
+                  <span className="text-[#9CA3AF] self-center font-bold">-</span>
                   <Input
                     type="number"
                     value={values.target_reps_max || 0}
@@ -115,13 +124,13 @@ export function RoutineExerciseItem({
                       ...values,
                       target_reps_max: parseInt(e.target.value) || 0
                     })}
-                    className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm"
-                    placeholder="מקסימום"
+                    className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white text-sm rounded-lg font-outfit focus:border-[#5B7FFF]"
+                    placeholder="Max"
                   />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">RIR:</label>
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block">RIR:</label>
                 <Input
                   type="number"
                   value={values.rir_target || 0}
@@ -129,11 +138,11 @@ export function RoutineExerciseItem({
                     ...values,
                     rir_target: parseInt(e.target.value) || 0
                   })}
-                  className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm"
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white text-sm rounded-lg font-outfit focus:border-[#5B7FFF]"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">מנוחה:</label>
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block">מנוחה (שניות):</label>
                 <Input
                   type="number"
                   value={values.rest_time_seconds || 0}
@@ -141,98 +150,99 @@ export function RoutineExerciseItem({
                     ...values,
                     rest_time_seconds: parseInt(e.target.value) || 0
                   })}
-                  className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm"
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white text-sm rounded-lg font-outfit focus:border-[#5B7FFF]"
                 />
               </div>
-              <div className="col-span-2 lg:col-span-4">
-                <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">הוראות ביצוע:</label>
-                <Textarea
-                  value={values.special_instructions || ''}
-                  onChange={(e) => setValues({
-                    ...values,
-                    special_instructions: e.target.value
-                  })}
-                  placeholder="הזן הוראות ביצוע מפורטות לתרגיל..."
-                  className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm min-h-[100px]"
-                  rows={4}
-                />
-              </div>
-              {onUpdateImage && (
-                <div className="col-span-2 lg:col-span-4">
-                  <label className="text-xs text-gray-600 dark:text-slate-400 mb-1 block">
-                    <ImageIcon className="inline h-3 w-3 ml-1" />
-                    URL תמונה:
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://example.com/image.jpg"
-                      className="bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white text-sm flex-1"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleSaveImage}
-                      className="border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
-                    >
-                      <Save className="h-3 w-3 ml-1" />
-                      שמור תמונה
-                    </Button>
-                  </div>
-                  {imageUrl && (
-                    <div className="mt-2">
-                      <img
-                        src={imageUrl}
-                        alt="תצוגה מקדימה"
-                        className="w-24 h-24 rounded object-cover border border-gray-200 dark:border-slate-800"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  )}
+            </div>
+
+            {/* Special Instructions */}
+            <div>
+              <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block">הוראות ביצוע:</label>
+              <Textarea
+                value={values.special_instructions || ''}
+                onChange={(e) => setValues({
+                  ...values,
+                  special_instructions: e.target.value
+                })}
+                placeholder="הזן הוראות ביצוע מפורטות לתרגיל..."
+                className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white placeholder:text-[#9CA3AF] text-sm min-h-[100px] rounded-lg font-outfit focus:border-[#5B7FFF]"
+                rows={4}
+              />
+            </div>
+
+            {/* Image URL */}
+            {onUpdateImage && (
+              <div>
+                <label className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1.5 block flex items-center gap-1">
+                  <ImageIcon className="h-3 w-3" />
+                  URL תמונה:
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white placeholder:text-[#9CA3AF] text-sm flex-1 rounded-lg font-outfit focus:border-[#5B7FFF]"
+                  />
+                  <button
+                    onClick={handleSaveImage}
+                    className="bg-[#4CAF50] hover:bg-[#45A049] text-white px-4 py-2 rounded-lg font-outfit font-semibold text-sm transition-all flex items-center gap-2"
+                    style={{ boxShadow: '0 4px 16px rgba(76, 175, 80, 0.3)' }}
+                  >
+                    <Save className="h-3 w-3" />
+                    שמור תמונה
+                  </button>
                 </div>
-              )}
-              <div className="col-span-2 lg:col-span-4 flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
-                >
-                  {isSaving ? "שומר..." : "שמור"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setIsEditing(false);
-                    // Reset values
-                    setValues({
-                      target_sets: exercise.target_sets,
-                      target_reps_min: exercise.target_reps_min,
-                      target_reps_max: exercise.target_reps_max,
-                      rir_target: exercise.rir_target,
-                      rest_time_seconds: exercise.rest_time_seconds,
-                      special_instructions: exercise.special_instructions || '',
-                    });
-                  }}
-                  className="border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
-                >
-                  ביטול
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                >
-                  <X className="h-4 w-4" />
-                  מחק
-                </Button>
+                {imageUrl && (
+                  <div className="mt-2">
+                    <img
+                      src={imageUrl}
+                      alt="תצוגה מקדימה"
+                      className="w-24 h-24 rounded-lg object-cover border-2 border-[#3D4058]"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="bg-gradient-to-br from-[#5B7FFF] to-[#4A5FCC] hover:from-[#6B8EFF] hover:to-[#5A6FDD] text-white px-4 py-2 rounded-lg font-outfit font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.3)' }}
+              >
+                {isSaving ? "שומר..." : "שמור"}
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditing(false);
+                  setValues({
+                    target_sets: exercise.target_sets,
+                    target_reps_min: exercise.target_reps_min,
+                    target_reps_max: exercise.target_reps_max,
+                    rir_target: exercise.rir_target,
+                    rest_time_seconds: exercise.rest_time_seconds,
+                    special_instructions: exercise.special_instructions || '',
+                  });
+                }}
+                className="bg-[#2D3142] hover:bg-[#3D4058] border-2 border-[#3D4058] text-white px-4 py-2 rounded-lg font-outfit font-semibold text-sm transition-all"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="bg-[#EF4444] hover:bg-[#DC2626] text-white px-4 py-2 rounded-lg font-outfit font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                style={{ boxShadow: '0 4px 16px rgba(239, 68, 68, 0.3)' }}
+              >
+                <X className="h-4 w-4" />
+                מחק
+              </button>
             </div>
           </div>
         </div>
@@ -241,60 +251,68 @@ export function RoutineExerciseItem({
   }
 
   return (
-    <div className="border-b border-gray-200 dark:border-slate-800 pb-3 sm:pb-4 last:border-0">
+    <div className="border-b-2 border-[#3D4058] pb-4 last:border-0 group hover:bg-[#1A1D2E]/30 -mx-2 px-2 rounded-lg transition-all">
       <div className="flex items-start gap-3 sm:gap-4">
         <div className="flex-1">
-          <h4 className="text-gray-900 dark:text-white font-semibold mb-3">
-            {index + 1}. {exercise.exercise?.name || 'תרגיל לא ידוע'}
-          </h4>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm mb-3 sm:mb-4">
-            <div>
-              <span className="text-gray-500 dark:text-slate-400">סטים:</span>
-              <span className="text-gray-900 dark:text-white mr-2">{exercise.target_sets}</span>
+          {/* Exercise Title */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-[#5B7FFF] flex items-center justify-center">
+              <span className="text-white font-outfit font-bold text-sm">{index + 1}</span>
             </div>
-            <div>
-              <span className="text-gray-500 dark:text-slate-400">חזרות:</span>
-              <span className="text-gray-900 dark:text-white mr-2">{exercise.target_reps_min}-{exercise.target_reps_max}</span>
+            <h4 className="text-white font-outfit font-bold text-base">
+              {exercise.exercise?.name || 'תרגיל לא ידוע'}
+            </h4>
+          </div>
+
+          {/* Exercise Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            <div className="bg-[#2D3142] rounded-lg p-2 border border-[#3D4058]">
+              <span className="text-[#9CA3AF] text-xs font-outfit block">סטים:</span>
+              <span className="text-white font-outfit font-bold text-sm">{exercise.target_sets}</span>
             </div>
-            <div>
-              <span className="text-gray-500 dark:text-slate-400">RIR:</span>
-              <span className="text-gray-900 dark:text-white mr-2">{exercise.rir_target}</span>
+            <div className="bg-[#2D3142] rounded-lg p-2 border border-[#3D4058]">
+              <span className="text-[#9CA3AF] text-xs font-outfit block">חזרות:</span>
+              <span className="text-white font-outfit font-bold text-sm">{exercise.target_reps_min}-{exercise.target_reps_max}</span>
             </div>
-            <div>
-              <span className="text-gray-500 dark:text-slate-400">מנוחה:</span>
-              <span className="text-gray-900 dark:text-white mr-2">{exercise.rest_time_seconds}ש</span>
+            <div className="bg-[#2D3142] rounded-lg p-2 border border-[#3D4058]">
+              <span className="text-[#9CA3AF] text-xs font-outfit block">RIR:</span>
+              <span className="text-white font-outfit font-bold text-sm">{exercise.rir_target}</span>
+            </div>
+            <div className="bg-[#2D3142] rounded-lg p-2 border border-[#3D4058]">
+              <span className="text-[#9CA3AF] text-xs font-outfit block">מנוחה:</span>
+              <span className="text-white font-outfit font-bold text-sm">{exercise.rest_time_seconds}ש</span>
             </div>
           </div>
+
+          {/* Exercise Image */}
           {exercise.exercise?.image_url && (
-            <div className="mb-3 sm:mb-4">
+            <div className="mb-3">
               <img
                 src={exercise.exercise.image_url}
                 alt={exercise.exercise.name}
-                className="w-32 h-32 rounded object-cover border border-gray-200 dark:border-slate-800"
+                className="w-32 h-32 rounded-lg object-cover border-2 border-[#3D4058]"
               />
             </div>
           )}
+
+          {/* Special Instructions */}
           {exercise.special_instructions && (
-            <div className="col-span-2 lg:col-span-4 mt-2 p-3 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-slate-800 mb-3 sm:mb-4">
-              <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">הוראות ביצוע:</p>
-              <p className="text-sm text-gray-900 dark:text-white whitespace-pre-line">{exercise.special_instructions}</p>
+            <div className="mt-2 p-3 bg-[#2D3142] rounded-lg border border-[#3D4058] mb-3">
+              <p className="text-xs font-outfit font-semibold text-[#9CA3AF] mb-1">הוראות ביצוע:</p>
+              <p className="text-sm font-outfit text-white whitespace-pre-line">{exercise.special_instructions}</p>
             </div>
           )}
-          <div className="col-span-2 lg:col-span-4">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsEditing(true)}
-              className="border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
-            >
-              ערוך
-            </Button>
-          </div>
+
+          {/* Edit Button */}
+          <button
+            onClick={() => setIsEditing(true)}
+            className="bg-[#2D3142] hover:bg-[#3D4058] border-2 border-[#3D4058] hover:border-[#5B7FFF] text-white px-4 py-2 rounded-lg font-outfit font-semibold text-sm transition-all flex items-center gap-2"
+          >
+            <Edit2 className="h-4 w-4" />
+            ערוך תרגיל
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
-
-
