@@ -7,8 +7,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { getWorkoutLogs } from "@/lib/db";
+import { getWorkoutLogs, saveBodyWeight } from "@/lib/db";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { WeightInputModal } from "@/components/trainee/WeightInputModal";
 
 // ============================================
 // ANIMATED COUNTER COMPONENT
@@ -270,6 +271,42 @@ export default function ProgressPage() {
   const [workoutLogs, setWorkoutLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [weightSaving, setWeightSaving] = useState(false);
+
+  // Weight series for chart
+  const weightSeries = useMemo(() => {
+    const series = workoutLogs
+      .filter((log: any) => log.body_weight && log.date)
+      .map((log: any) => ({
+        date: new Date(log.date || log.start_time),
+        weight: log.body_weight as number,
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    // remove duplicates per day (keep latest)
+    const byDay = new Map<string, number>();
+    series.forEach(({ date, weight }) => {
+      const day = date.toISOString().split("T")[0];
+      byDay.set(day, weight);
+    });
+
+    return Array.from(byDay.entries())
+      .map(([day, weight]) => ({ day, weight }))
+      .sort((a, b) => new Date(a.day).getTime() - new Date(b.day).getTime());
+  }, [workoutLogs]);
+
+  const latestWeightSeries = weightSeries.length > 0 ? weightSeries[weightSeries.length - 1].weight : null;
+  const weightChange7 = useMemo(() => {
+    if (weightSeries.length < 2) return null;
+    const latestDay = new Date(weightSeries[weightSeries.length - 1].day);
+    const baselineDay = new Date(latestDay);
+    baselineDay.setDate(baselineDay.getDate() - 7);
+    const baseline =
+      [...weightSeries].reverse().find(p => new Date(p.day) <= baselineDay) ||
+      weightSeries[0];
+    return Math.round((latestWeightSeries! - baseline.weight) * 10) / 10;
+  }, [weightSeries, latestWeightSeries]);
 
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -316,7 +353,7 @@ export default function ProgressPage() {
         const end = new Date(log.end_time).getTime();
         return total + ((end - start) / 1000);
       }
-      return total + (45 * 60);
+      return total; // אם אין מידע, לא נוסיף הערכה
     }, 0);
     
     const hours = Math.floor(totalSeconds / 3600);
@@ -326,60 +363,47 @@ export default function ProgressPage() {
 
     const totalMinutes = totalSeconds / 60;
     const burnedCalories = Math.round(totalMinutes * 9).toLocaleString();
-    const collectedPoints = (workoutSets * 10).toLocaleString();
-    const distanceKm = Math.round((totalMinutes * 0.1) * 10) / 10;
-    const steps = Math.round(totalMinutes * 120);
-    const heartRate = workoutSets > 0 ? 105 : 72;
 
-    const weeksInMonth = Math.ceil(monthEnd.getDate() / 7);
-    const distanceGraphData = Array.from({ length: weeksInMonth }, (_, i) => {
-      const weekStart = new Date(currentYear, monthIndex, i * 7 + 1);
-      const weekEnd = new Date(currentYear, monthIndex, Math.min((i + 1) * 7, monthEnd.getDate()));
-      const weekLogs = monthLogs.filter(log => {
-        const logDate = new Date(log.date || log.start_time);
-        return logDate >= weekStart && logDate <= weekEnd;
-      });
-      const weekMinutes = weekLogs.reduce((total, log: any) => {
-        if (log.duration_seconds) return total + (log.duration_seconds / 60);
-        if (log.start_time && log.end_time) {
-          const start = new Date(log.start_time).getTime();
-          const end = new Date(log.end_time).getTime();
-          return total + ((end - start) / (1000 * 60));
-        }
-        return total + 45;
+    // נפח כולל מתוך set_logs (אם קיים)
+    const totalVolume = monthLogs.reduce((sum, log: any) => {
+      const volume = (log.set_logs || []).reduce((acc: number, set: any) => {
+        const w = set.weight_kg || 0;
+        const r = set.reps || 0;
+        return acc + w * r;
       }, 0);
-      return { x: i, y: Math.round((weekMinutes * 0.1) * 10) / 10 };
-    });
-
-    const lastMonthIndex = monthIndex === 0 ? 11 : monthIndex - 1;
-    const lastMonthYear = monthIndex === 0 ? currentYear - 1 : currentYear;
-    const lastMonthStart = new Date(lastMonthYear, lastMonthIndex, 1);
-    const lastMonthEnd = new Date(lastMonthYear, lastMonthIndex + 1, 0, 23, 59, 59);
-    const lastMonthLogs = workoutLogs.filter(log => {
-      const logDate = new Date(log.date || log.start_time);
-      return logDate >= lastMonthStart && logDate <= lastMonthEnd && log.completed;
-    });
-    const lastMonthMinutes = lastMonthLogs.reduce((total, log: any) => {
-      if (log.duration_seconds) return total + (log.duration_seconds / 60);
-      if (log.start_time && log.end_time) {
-        const start = new Date(log.start_time).getTime();
-        const end = new Date(log.end_time).getTime();
-        return total + ((end - start) / (1000 * 60));
-      }
-      return total + 45;
+      return sum + volume;
     }, 0);
-    const lastMonthDistance = Math.round((lastMonthMinutes * 0.1) * 10) / 10;
+
+    // מגמת משקל (14 יום אחרונים בתוך החודש)
+    const weightLogs = monthLogs
+      .filter((log: any) => log.body_weight)
+      .map((log: any) => ({
+        date: new Date(log.date || log.start_time),
+        weight: log.body_weight as number,
+      }))
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    const latestWeight = weightLogs.length > 0 ? weightLogs[0].weight : null;
+    let weightChange: number | null = null;
+    if (weightLogs.length > 1) {
+      const latestDate = weightLogs[0].date;
+      const baselineDate = new Date(latestDate);
+      baselineDate.setDate(baselineDate.getDate() - 14);
+      const baselineLog =
+        weightLogs.find(w => w.date <= baselineDate) ||
+        weightLogs[weightLogs.length - 1];
+      if (baselineLog) {
+        weightChange = Math.round((latestWeight! - baselineLog.weight) * 10) / 10;
+      }
+    }
 
     return {
       workoutSets,
       totalTime,
       burnedCalories,
-      collectedPoints,
-      distanceKm,
-      lastMonthDistance,
-      steps,
-      heartRate,
-      distanceGraphData,
+      totalVolume,
+      latestWeight,
+      weightChange,
     };
   }, [workoutLogs, selectedMonth, months]);
 
@@ -387,10 +411,35 @@ export default function ProgressPage() {
     if (navigator.share && monthStats) {
       navigator.share({
         title: "דוח התקדמות",
-        text: `ההתקדמות שלי ל-${selectedMonth}: ${monthStats.workoutSets} אימונים, ${monthStats.totalTime} זמן כולל, ${monthStats.distanceKm}km מרחק`,
+        text: `ההתקדמות שלי ל-${selectedMonth}: ${monthStats.workoutSets} אימונים, ${monthStats.totalTime} זמן כולל`,
       }).catch(console.error);
     }
   };
+
+  const handleSaveWeight = async (weight: number) => {
+    if (!user?.id) return;
+    try {
+      setWeightSaving(true);
+      await saveBodyWeight(user.id, weight);
+      const logs = await getWorkoutLogs(user.id, 365);
+      setWorkoutLogs(logs || []);
+    } finally {
+      setWeightSaving(false);
+    }
+  };
+
+  const weightChartPoints = useMemo(() => {
+    if (weightSeries.length === 0) return [];
+    const minW = Math.min(...weightSeries.map(p => p.weight));
+    const maxW = Math.max(...weightSeries.map(p => p.weight));
+    const range = Math.max(1, maxW - minW);
+    return weightSeries.map((p, idx) => ({
+      x: (idx / Math.max(1, weightSeries.length - 1)) * 100,
+      y: 100 - ((p.weight - minW) / range) * 80,
+      weight: p.weight,
+      day: p.day
+    }));
+  }, [weightSeries]);
 
   if (loading) {
     return <LoadingSpinner fullScreen text="טוען דוח התקדמות..." size="lg" />;
@@ -411,9 +460,7 @@ export default function ProgressPage() {
     );
   }
 
-  const { workoutSets, totalTime, burnedCalories, collectedPoints, distanceKm, lastMonthDistance, steps, heartRate, distanceGraphData } = monthStats;
-  const distanceChange = distanceKm - lastMonthDistance;
-  const distanceChangePercent = lastMonthDistance > 0 ? Math.round((distanceChange / lastMonthDistance) * 100) : 0;
+  const { workoutSets, totalTime, burnedCalories, totalVolume, latestWeight, weightChange } = monthStats;
 
   return (
     <>
@@ -484,13 +531,15 @@ export default function ProgressPage() {
               {/* Header */}
               <div className="w-full flex items-center justify-between animate-fade-in">
                 <h1 className="text-[32px] font-outfit font-bold text-white">התקדמות</h1>
-                <button
-                  onClick={handleShare}
-                  className="w-12 h-12 bg-[#2D3142] rounded-full flex items-center justify-center hover:bg-[#3D4058] transition-all hover:scale-110"
-                  style={{ boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)' }}
-                >
-                  <Share2 className="w-5 h-5 text-white" />
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleShare}
+                    className="w-12 h-12 bg-[#2D3142] rounded-full flex items-center justify-center hover:bg-[#3D4058] transition-all hover:scale-110"
+                    style={{ boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)' }}
+                  >
+                    <Share2 className="w-5 h-5 text-white" />
+                  </button>
+                </div>
               </div>
 
               {/* Month Selector */}
@@ -560,145 +609,115 @@ export default function ProgressPage() {
                   <StatCard
                     icon={Flame}
                     value={`${burnedCalories} cal`}
-                    label="נשרף"
+                    label="קלוריות מוערך"
                     color="bg-[#FF8A00]"
                     delay={400}
                   />
                   <StatCard
-                    icon={Crown}
-                    value={collectedPoints}
-                    label="נקודות"
-                    color="bg-[#9C27B0]"
+                    icon={TrendingUp}
+                    value={totalVolume.toLocaleString()}
+                    label={'נפח (ק"ג x חזרות)'}
+                    color="bg-[#5B7FFF]"
                     delay={450}
                   />
-                </div>
-              </div>
-
-              {/* Distance Card */}
-              <div 
-                className="w-full bg-gradient-to-br from-[#4CAF50] to-[#45A049] rounded-2xl p-6 slide-up relative overflow-hidden"
-                style={{ 
-                  animationDelay: '500ms',
-                  boxShadow: '0 12px 48px rgba(76, 175, 80, 0.4)'
-                }}
-              >
-                <div className="absolute inset-0 bg-white/5" />
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="text-white text-sm font-outfit font-bold uppercase tracking-wide">
-                      אתה על המסלול
-                    </div>
-                  </div>
-                  
-                  <div className="mb-5">
-                    <div className="text-white text-3xl font-outfit font-bold mb-2">
-                      <AnimatedCounter value={distanceKm} suffix=" km" delay={600} />
-                    </div>
-                    <div className="text-white/90 text-sm font-outfit font-medium mb-2">
-                      מרחק שנכסה ב-{selectedMonth}
-                    </div>
-                    {lastMonthDistance > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className={cn(
-                          "flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2 py-1",
-                          distanceChange >= 0 ? "text-white" : "text-white/70"
-                        )}>
-                          {distanceChange >= 0 ? (
-                            <TrendingUp className="w-3 h-3" />
-                          ) : (
-                            <TrendingUp className="w-3 h-3 rotate-180" />
-                          )}
-                          <span className="text-xs font-outfit font-bold">
-                            {Math.abs(distanceChangePercent)}%
-                          </span>
-                        </div>
-                        <span className="text-white/70 text-xs font-outfit font-normal">
-                          לעומת חודש שעבר ({lastMonthDistance}km)
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Animated Line Graph */}
-                  <div className="w-full h-32 relative bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                    <AnimatedLineGraph 
-                      data={distanceGraphData} 
-                      color="white"
-                      delay={700}
+                  {latestWeight !== null && (
+                    <StatCard
+                      icon={Activity}
+                      value={`${latestWeight.toFixed(1)} ק\"ג`}
+                      label={
+                        weightChange !== null
+                          ? `${weightChange > 0 ? "+" : ""}${weightChange.toFixed(1)} ק\"ג ב-14 ימים`
+                          : "אין מגמה"
+                      }
+                      color="bg-[#9C27B0]"
+                      delay={500}
                     />
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* Bottom Stats */}
-              <div className="w-full grid grid-cols-2 gap-4">
-                {/* Steps Card */}
-                <div 
-                  className="bg-[#2D3142] rounded-2xl p-5 flex flex-col items-center gap-4 hover-lift transition-all slide-up"
-                  style={{ 
-                    animationDelay: '600ms',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
-                  }}
-                >
-                  <div className="text-[#9CA3AF] text-sm font-outfit font-medium">
-                    צעדים
+              {/* Weight Section */}
+              <div className="w-full bg-[#2D3142] rounded-2xl p-5 slide-up"
+                style={{ animationDelay: '650ms', boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col">
+                    <h3 className="text-white text-lg font-outfit font-semibold">משקל גוף</h3>
+                    <span className="text-[#9CA3AF] text-sm font-outfit">
+                      עקוב אחר המגמה השבועית והוסף משקל חדש
+                    </span>
                   </div>
-                  <CircularProgress
-                    value={steps}
-                    max={250000}
-                    size={112}
-                    strokeWidth={10}
-                    color="#5B7FFF"
-                    label="צעדים"
-                    delay={800}
-                  />
+                  <button
+                    onClick={() => setShowWeightModal(true)}
+                    className="px-3 py-2 rounded-xl bg-[#5B7FFF] text-white text-sm font-outfit font-semibold hover:brightness-110 transition-all"
+                    style={{ boxShadow: '0 4px 12px rgba(91,127,255,0.35)' }}
+                    disabled={weightSaving}
+                  >
+                    {weightSaving ? "שומר..." : "הוסף משקל"}
+                  </button>
                 </div>
 
-                {/* Heart Rate Card */}
-                <div 
-                  className="bg-[#2D3142] rounded-2xl p-5 flex flex-col gap-4 hover-lift transition-all slide-up"
-                  style={{ 
-                    animationDelay: '650ms',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
-                  }}
-                >
-                  <div className="text-[#9CA3AF] text-sm font-outfit font-medium text-center">
-                    דופק
-                  </div>
-                  
-                  {/* Animated Heart Rate Graph */}
-                  <div className="flex-1 flex items-center justify-center h-20">
-                    <svg width="100%" height="100%" viewBox="0 0 100 60" className="overflow-visible">
-                      <defs>
-                        <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#5B7FFF" stopOpacity="0.5" />
-                          <stop offset="100%" stopColor="#5B7FFF" stopOpacity="1" />
-                        </linearGradient>
-                      </defs>
-                      <polyline
-                        points="0,45 15,35 25,30 35,25 45,20 55,15 65,20 75,25 85,15 100,20"
-                        fill="none"
-                        stroke="url(#heartGradient)"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="pulse-animation"
-                      />
-                    </svg>
-                  </div>
-                  
-                  <div className="flex flex-col items-center">
-                    <div className="text-[#5B7FFF] text-2xl font-outfit font-bold">
-                      <AnimatedCounter value={heartRate} delay={900} />
+                {weightSeries.length === 0 ? (
+                  <div className="text-[#9CA3AF] text-sm font-outfit">אין נתוני משקל עדיין</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-[#1F2233] rounded-xl p-4 flex flex-col gap-2">
+                      <div className="text-white text-3xl font-outfit font-bold">
+                        {latestWeightSeries?.toFixed(1)} ק"ג
+                      </div>
+                      <div className="text-[#9CA3AF] text-xs font-outfit">
+                        משקל עדכני
+                      </div>
+                      <div
+                        className={`text-sm font-outfit font-semibold ${
+                          weightChange7 !== null
+                            ? weightChange7 > 0
+                              ? 'text-[#22c55e]'
+                              : weightChange7 < 0
+                                ? 'text-[#ef4444]'
+                                : 'text-[#9CA3AF]'
+                            : 'text-[#9CA3AF]'
+                        }`}
+                      >
+                        {weightChange7 !== null
+                          ? `${weightChange7 > 0 ? '+' : ''}${weightChange7.toFixed(1)} ק"ג ב-7 ימים`
+                          : 'אין מגמה בשבוע האחרון'}
+                      </div>
                     </div>
-                    <div className="text-[#9CA3AF] text-xs font-outfit font-medium">
-                      פעימות לדקה
+
+                    <div className="bg-[#1F2233] rounded-xl p-4 h-40">
+                      {weightChartPoints.length > 0 ? (
+                        <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+                          <defs>
+                            <linearGradient id="weightLine" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#5B7FFF" stopOpacity="0.4" />
+                              <stop offset="100%" stopColor="#5B7FFF" stopOpacity="1" />
+                            </linearGradient>
+                          </defs>
+                          <path
+                            d={
+                              weightChartPoints
+                                .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`)
+                                .join(' ')
+                            }
+                            fill="none"
+                            stroke="url(#weightLine)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          {weightChartPoints.map((p, i) => (
+                            <g key={i}>
+                              <circle cx={p.x} cy={p.y} r="1.8" fill="#5B7FFF" />
+                            </g>
+                          ))}
+                        </svg>
+                      ) : (
+                        <div className="text-[#9CA3AF] text-xs font-outfit text-center">
+                          אין נתונים להצגה
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Achievements Summary */}
@@ -734,6 +753,12 @@ export default function ProgressPage() {
           </div>
         </div>
       </div>
+
+      <WeightInputModal
+        isOpen={showWeightModal}
+        onClose={() => setShowWeightModal(false)}
+        onSave={handleSaveWeight}
+      />
     </>
   );
 }

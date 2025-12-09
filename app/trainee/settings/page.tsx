@@ -16,11 +16,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getWorkoutLogs } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -298,6 +297,10 @@ function SettingsPageContent() {
   const [loading, setLoading] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [workoutLogs, setWorkoutLogs] = useState<any[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -324,6 +327,18 @@ function SettingsPageContent() {
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(user?.profile_image_url || null);
+
+  // Lock background scroll while the edit modal is open
+  useEffect(() => {
+    if (!showEditProfile) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [showEditProfile]);
 
   // Load settings from localStorage
   useEffect(() => {
@@ -373,6 +388,50 @@ function SettingsPageContent() {
   const handleSaveProfile = () => {
     setShowEditProfile(false);
     showToast('✅ Profile updated!', "success", 2000);
+  };
+
+  const resetPasswordState = () => {
+    setPasswordError(null);
+    setNewPassword("");
+    setConfirmPassword("");
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      setPasswordError('אנא מלא את כל השדות');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('הסיסמה חייבת להכיל לפחות 6 תווים');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('הסיסמאות אינן תואמות');
+      return;
+    }
+
+    setPasswordError(null);
+    setChangingPassword(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      showToast('✅ הסיסמה עודכנה בהצלחה', "success", 2500);
+      setShowChangePassword(false);
+      resetPasswordState();
+    } catch (err: any) {
+      console.error('Error changing password:', err);
+      const message = err?.message || 'שגיאה בשינוי הסיסמה';
+      setPasswordError(message);
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -750,7 +809,10 @@ function SettingsPageContent() {
                   <MenuItem
                     icon={Lock}
                     label="שנה סיסמה"
-                    onClick={() => showToast('🔒 Coming soon!', "info", 2000)}
+                    onClick={() => {
+                      resetPasswordState();
+                      setShowChangePassword(true);
+                    }}
                   />
                   <div className="w-full h-px bg-[#3D4058]" />
                   <MenuItem
@@ -792,86 +854,154 @@ function SettingsPageContent() {
         </div>
 
         {/* Edit Profile Modal */}
-        {showEditProfile && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div 
-              className="bg-[#2D3142] w-full max-w-md rounded-2xl overflow-hidden slide-up"
-              style={{ boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)' }}
-            >
-              <div className="p-6 border-b border-[#3D4058] bg-gradient-to-r from-[#5B7FFF] to-[#4A5FCC]">
-                <h3 className="text-white text-2xl font-outfit font-bold">ערוך פרופיל</h3>
+        <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
+          <DialogContent className="bg-[#2D3142] text-white w-full max-w-md p-0 border-none rounded-2xl shadow-2xl animate-fade-in">
+            <DialogHeader className="p-6 border-b border-[#3D4058] bg-gradient-to-r from-[#5B7FFF] to-[#4A5FCC] rounded-t-2xl">
+              <DialogTitle className="text-white text-2xl font-outfit font-bold">
+                ערוך פרופיל
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5 p-6 max-h-[75vh] overflow-y-auto">
+              {/* Profile Image Upload */}
+              <div className="flex flex-col items-center gap-4 pb-4 border-b border-[#3D4058]">
+                <div className="relative">
+                  <Avatar className="w-24 h-24 border-4 border-[#5B7FFF]">
+                    <AvatarImage src={imagePreview || undefined} />
+                    <AvatarFallback className="bg-[#5B7FFF] text-white text-3xl font-outfit font-bold">
+                      {user?.name?.charAt(0) || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <label 
+                    className="absolute bottom-0 right-0 w-8 h-8 bg-[#5B7FFF] rounded-full flex items-center justify-center border-2 border-[#2D3142] hover:scale-110 transition-transform cursor-pointer"
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                    />
+                    {uploadingImage ? (
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4 text-white" />
+                    )}
+                  </label>
+                </div>
+                <p className="text-xs text-[#9CA3AF] text-center font-outfit">
+                  לחץ על האייקון כדי להעלות תמונת פרופיל
+                </p>
               </div>
-              <div className="space-y-5 p-6">
-                {/* Profile Image Upload */}
-                <div className="flex flex-col items-center gap-4 pb-4 border-b border-[#3D4058]">
-                  <div className="relative">
-                    <Avatar className="w-24 h-24 border-4 border-[#5B7FFF]">
-                      <AvatarImage src={imagePreview || undefined} />
-                      <AvatarFallback className="bg-[#5B7FFF] text-white text-3xl font-outfit font-bold">
-                        {user?.name?.charAt(0) || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <label 
-                      className="absolute bottom-0 right-0 w-8 h-8 bg-[#5B7FFF] rounded-full flex items-center justify-center border-2 border-[#2D3142] hover:scale-110 transition-transform cursor-pointer"
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                        disabled={uploadingImage}
-                      />
-                      {uploadingImage ? (
-                        <Loader2 className="w-4 h-4 text-white animate-spin" />
-                      ) : (
-                        <Camera className="w-4 h-4 text-white" />
-                      )}
-                    </label>
-                  </div>
-                  <p className="text-xs text-[#9CA3AF] text-center font-outfit">
-                    לחץ על האייקון כדי להעלות תמונת פרופיל
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm text-[#9CA3AF] mb-2 block font-outfit font-semibold">
-                    שם מלא
-                  </label>
-                  <Input
-                    value={profileForm.name}
-                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white rounded-xl h-12 font-outfit font-normal focus:border-[#5B7FFF] transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-[#9CA3AF] mb-2 block font-outfit font-semibold">
-                    אימייל
-                  </label>
-                  <Input
-                    type="email"
-                    value={profileForm.email}
-                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white rounded-xl h-12 font-outfit font-normal focus:border-[#5B7FFF] transition-all"
-                  />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    onClick={handleSaveProfile}
-                    className="flex-1 h-12 bg-[#5B7FFF] hover:bg-[#6B8EFF] text-white font-outfit font-bold rounded-xl hover:scale-105 transition-all"
-                    style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.4)' }}
-                  >
-                    שמור
-                  </Button>
-                  <Button
-                    onClick={() => setShowEditProfile(false)}
-                    className="flex-1 h-12 bg-[#1A1D2E] border-2 border-[#3D4058] text-white hover:bg-[#3D4058] font-outfit font-bold rounded-xl transition-all"
-                  >
-                    ביטול
-                  </Button>
-                </div>
+              <div>
+                <label className="text-sm text-[#9CA3AF] mb-2 block font-outfit font-semibold">
+                  שם מלא
+                </label>
+                <Input
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white rounded-xl h-12 font-outfit font-normal focus:border-[#5B7FFF] transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-[#9CA3AF] mb-2 block font-outfit font-semibold">
+                  אימייל
+                </label>
+                <Input
+                  type="email"
+                  value={profileForm.email}
+                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white rounded-xl h-12 font-outfit font-normal focus:border-[#5B7FFF] transition-all"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button
+                  onClick={handleSaveProfile}
+                  className="flex-1 h-12 bg-[#5B7FFF] hover:bg-[#6B8EFF] text-white font-outfit font-bold rounded-xl hover:scale-105 transition-all"
+                  style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.4)' }}
+                >
+                  שמור
+                </Button>
+                <Button
+                  onClick={() => setShowEditProfile(false)}
+                  className="flex-1 h-12 bg-[#1A1D2E] border-2 border-[#3D4058] text-white hover:bg-[#3D4058] font-outfit font-bold rounded-xl transition-all"
+                >
+                  ביטול
+                </Button>
               </div>
             </div>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Change Password Modal */}
+        <Dialog open={showChangePassword} onOpenChange={(open) => {
+          setShowChangePassword(open);
+          if (!open) resetPasswordState();
+        }}>
+          <DialogContent className="bg-[#2D3142] text-white w-full max-w-md p-0 border-none rounded-2xl shadow-2xl animate-fade-in">
+            <DialogHeader className="p-6 border-b border-[#3D4058] bg-gradient-to-r from-[#5B7FFF] to-[#4A5FCC] rounded-t-2xl">
+              <DialogTitle className="text-white text-2xl font-outfit font-bold">
+                שינוי סיסמה
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 p-6 max-h-[75vh] overflow-y-auto">
+              {passwordError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-outfit font-semibold">
+                  {passwordError}
+                </div>
+              )}
+              <div>
+                <label className="text-sm text-[#9CA3AF] mb-2 block font-outfit font-semibold">
+                  סיסמה חדשה
+                </label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white rounded-xl h-12 font-outfit font-normal focus:border-[#5B7FFF] transition-all"
+                  placeholder="לפחות 6 תווים"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-[#9CA3AF] mb-2 block font-outfit font-semibold">
+                  אישור סיסמה
+                </label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="bg-[#1A1D2E] border-2 border-[#3D4058] text-white rounded-xl h-12 font-outfit font-normal focus:border-[#5B7FFF] transition-all"
+                  placeholder="הזן שוב את הסיסמה"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword}
+                  className="flex-1 h-12 bg-[#5B7FFF] hover:bg-[#6B8EFF] text-white font-outfit font-bold rounded-xl hover:scale-105 transition-all"
+                  style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.4)' }}
+                >
+                  {changingPassword ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      מעדכן...
+                    </>
+                  ) : (
+                    'עדכן סיסמה'
+                  )}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowChangePassword(false);
+                    resetPasswordState();
+                  }}
+                  className="flex-1 h-12 bg-[#1A1D2E] border-2 border-[#3D4058] text-white hover:bg-[#3D4058] font-outfit font-bold rounded-xl transition-all"
+                >
+                  ביטול
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );

@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { 
   Search, Settings, Play, X,
-  Clock, Flame, Bell, Home, TrendingUp, BarChart3, User,
-  Trophy, Zap, Target, Calendar
+  Clock, Flame, Bell, Home, TrendingUp, BarChart3, User, Trophy
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,12 +25,15 @@ interface DifficultyInfo {
   color: string;
 }
 
-interface ActivityStats {
-  steps: number;
-  stepsProgress: number;
-  heartRate: number;
+interface DashboardStats {
+  weeklyCompletion: number;
+  weeklyCompleted: number;
+  weeklyTarget: number;
+  avgDurationMinutes: number;
+  totalCalories: number;
   streak: number;
-  weeklyGoal: number;
+  latestWeight: number | null;
+  weightChange: number | null;
 }
 
 // ============================================
@@ -144,7 +146,7 @@ const WorkoutCard = ({
   const routineName = routine.name || `אימון ${routine.letter}`;
   
   if (variant === 'horizontal') {
-    return (
+  return (
       <Link
         href={`/trainee/workout?routine=${routine.id}`}
         className="flex-shrink-0 w-[280px] h-[160px] rounded-2xl relative overflow-hidden group"
@@ -187,15 +189,15 @@ const WorkoutCard = ({
                 <span className="text-[#1A1D2E] text-xs font-outfit font-medium">
                   {stats.calories} קלוריות
                 </span>
-              </div>
+          </div>
               <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 w-fit transition-all duration-300 group-hover:bg-white">
                 <Clock className="w-4 h-4 text-[#1A1D2E]" />
                 <span className="text-[#1A1D2E] text-xs font-outfit font-medium">
                   {stats.minutes} דקות
                 </span>
-              </div>
-            </div>
+        </div>
           </div>
+        </div>
           <div className="flex justify-end">
             <div className="w-12 h-12 bg-[#5B7FFF] rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-[#5B7FFF]/50">
               <Play className="w-6 h-6 text-white fill-white" />
@@ -263,34 +265,6 @@ const StreakBadge = ({ streak }: { streak: number }) => {
   );
 };
 
-// Achievement Badge Component
-const AchievementBadge = ({ 
-  icon: Icon, 
-  label, 
-  delay = 0 
-}: { 
-  icon: any; 
-  label: string;
-  delay?: number;
-}) => (
-  <div 
-    className="flex flex-col items-center gap-2 p-3 bg-[#2D3142] rounded-xl hover-lift transition-all duration-300"
-    style={{
-      animationDelay: `${delay}ms`,
-      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
-    }}
-  >
-    <div className="w-12 h-12 bg-gradient-to-br from-[#5B7FFF] to-[#4A5FCC] rounded-full flex items-center justify-center"
-      style={{
-        boxShadow: '0 4px 12px rgba(91, 127, 255, 0.4)'
-      }}
-    >
-      <Icon className="w-6 h-6 text-white" />
-    </div>
-    <span className="text-[#9CA3AF] text-xs font-outfit text-center">{label}</span>
-  </div>
-);
-
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -350,70 +324,97 @@ export default function TraineeDashboard() {
     return () => { cancelled = true; };
   }, [traineeId, authLoading]);
 
-  // Calculate activity stats with streak
-  const activityStats: ActivityStats = useMemo(() => {
-    const dailyGoalSteps = 300000;
-    
+  // Calculate dashboard stats (no mock data)
+  const dashboardStats: DashboardStats = useMemo(() => {
+    // Duration and calories
     const totalWorkoutMinutes = workoutLogs.reduce((total, log: any) => {
       let durationMinutes = 0;
-      
       if (log.duration_seconds) {
         durationMinutes = log.duration_seconds / 60;
       } else if (log.start_time && log.end_time) {
         const start = new Date(log.start_time).getTime();
         const end = new Date(log.end_time).getTime();
-        durationMinutes = (end - start) / (1000 * 60);
+        durationMinutes = Math.max(0, (end - start) / (1000 * 60));
       } else {
-        durationMinutes = 45;
+        durationMinutes = 0;
       }
-      
       return total + durationMinutes;
     }, 0);
-    
-    const estimatedSteps = Math.round(totalWorkoutMinutes * 120);
-    const baseSteps = 200000;
-    const totalSteps = estimatedSteps + baseSteps;
-    const stepsProgress = Math.min(Math.round((totalSteps / dailyGoalSteps) * 100), 100);
-    const avgHeartRate = workoutLogs.length > 0 ? 105 : 72;
-    
-    // Calculate streak
+    const avgDurationMinutes =
+      workoutLogs.length > 0 ? Math.round(totalWorkoutMinutes / workoutLogs.length) : 0;
+    const totalCalories = Math.round(totalWorkoutMinutes * 9); // simple estimate
+
+    // Weight trend (14 days)
+    const weightLogs = workoutLogs
+      .filter((log: any) => log.body_weight)
+      .map((log: any) => ({
+        date: new Date(log.date || log.start_time),
+        weight: log.body_weight as number,
+      }))
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    const latestWeight = weightLogs.length > 0 ? weightLogs[0].weight : null;
+    let weightChange: number | null = null;
+    if (weightLogs.length > 1) {
+      const latestDate = weightLogs[0].date;
+      const baselineDate = new Date(latestDate);
+      baselineDate.setDate(baselineDate.getDate() - 14);
+      const baselineLog =
+        weightLogs.find(w => w.date <= baselineDate) ||
+        weightLogs[weightLogs.length - 1];
+      if (baselineLog) {
+        weightChange = Math.round((latestWeight! - baselineLog.weight) * 10) / 10;
+      }
+    }
+
+    // Streak
     const sortedLogs = [...workoutLogs]
       .filter(log => log.completed)
-      .sort((a, b) => new Date(b.date || b.start_time).getTime() - new Date(a.date || a.start_time).getTime());
-    
+      .sort(
+        (a, b) =>
+          new Date(b.date || b.start_time).getTime() -
+          new Date(a.date || a.start_time).getTime()
+      );
     let streak = 0;
-    let currentDate = new Date();
+    const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
-    
     for (const log of sortedLogs) {
       const logDate = new Date(log.date || log.start_time);
       logDate.setHours(0, 0, 0, 0);
-      const daysDiff = Math.floor((currentDate.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (daysDiff === streak) {
+      const daysDiff =
+        (currentDate.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (Math.floor(daysDiff) === streak) {
         streak++;
       } else {
         break;
       }
     }
-    
-    // Weekly goal progress (assuming 4 workouts per week)
-    const thisWeekLogs = workoutLogs.filter(log => {
+
+    // Weekly completion
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const completedWeekLogs = workoutLogs.filter(log => {
       const logDate = new Date(log.date || log.start_time);
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return logDate >= weekAgo && log.completed;
+      return log.completed && logDate >= weekAgo;
     });
-    const weeklyGoal = Math.min(Math.round((thisWeekLogs.length / 4) * 100), 100);
-    
+    const weeklyCompleted = completedWeekLogs.length;
+    const weeklyTarget = workoutPlan?.weekly_target_workouts || 4;
+    const weeklyCompletion =
+      weeklyTarget > 0
+        ? Math.min(100, Math.round((weeklyCompleted / weeklyTarget) * 100))
+        : 0;
+
     return {
-      steps: totalSteps,
-      stepsProgress,
-      heartRate: avgHeartRate,
+      weeklyCompletion,
+      weeklyCompleted,
+      weeklyTarget,
+      avgDurationMinutes,
+      totalCalories,
       streak,
-      weeklyGoal,
+      latestWeight,
+      weightChange,
     };
-  }, [workoutLogs]);
+  }, [workoutLogs, workoutPlan]);
 
   // Calculate workout stats
   const calculateWorkoutStats = (routine: RoutineWithExercises): WorkoutStats => {
@@ -594,7 +595,7 @@ export default function TraineeDashboard() {
                     <h1 className="text-white text-[32px] font-outfit font-bold leading-tight">
                       {user?.name || 'Stephen'}
                     </h1>
-                  </div>
+                    </div>
                 </div>
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
@@ -604,21 +605,21 @@ export default function TraineeDashboard() {
                   }}
                 >
                   <Bell className="w-6 h-6 text-white" />
-                  {activityStats.streak > 0 && (
+                  {dashboardStats.streak > 0 && (
                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#EF4444] rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">{activityStats.streak}</span>
+                      <span className="text-white text-xs font-bold">{dashboardStats.streak}</span>
                     </div>
                   )}
                 </button>
-              </div>
+                </div>
 
               {/* Streak Badge */}
-              {activityStats.streak > 0 && (
+              {dashboardStats.streak > 0 && (
                 <div className="w-full flex justify-center" style={{ animationDelay: '100ms' }}>
-                  <StreakBadge streak={activityStats.streak} />
-                </div>
-              )}
-
+                  <StreakBadge streak={dashboardStats.streak} />
+              </div>
+            )}
+            
               {/* Tabs */}
               <div className="w-full border-b border-[#2D3142]" style={{ animationDelay: '200ms' }}>
                 <div className="flex">
@@ -685,7 +686,7 @@ export default function TraineeDashboard() {
                     <X className="w-4 h-4 text-[#9CA3AF]" />
                   </button>
                 )}
-              </div>
+      </div>
 
               {/* Tab Content */}
               {activeTab === "discover" ? (
@@ -700,79 +701,49 @@ export default function TraineeDashboard() {
                     </div>
 
                     <div className="flex gap-4">
-                      {/* Steps Card */}
-                      <ActivityCard title="צעדים" delay={100}>
+                      {/* Weekly completion */}
+                      <ActivityCard title="השלמת יעד שבועי" delay={100}>
                         <CircularProgress
-                          progress={activityStats.stepsProgress}
-                          value={activityStats.steps.toLocaleString()}
-                          label="צעדים"
+                          progress={dashboardStats.weeklyCompletion}
+                          value={`${dashboardStats.weeklyCompletion}%`}
+                          label={`${dashboardStats.weeklyCompleted}/${dashboardStats.weeklyTarget} אימונים`}
+                          color="#5B7FFF"
                         />
                       </ActivityCard>
 
-                      {/* Heart Rate Card */}
-                      <ActivityCard title="דופק" delay={200}>
-                        <div className="flex flex-col items-center gap-2 w-full">
-                          {/* Heart Rate Graph */}
-                          <svg className="w-full h-16 pulse-animation" viewBox="0 0 160 60" preserveAspectRatio="none">
-                            <defs>
-                              <linearGradient id="heartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor="#5B7FFF" stopOpacity="0.8" />
-                                <stop offset="100%" stopColor="#5B7FFF" stopOpacity="0.2" />
-                              </linearGradient>
-                            </defs>
-                            <polyline
-                              points="0,50 20,45 30,20 40,55 50,15 60,50 80,40 100,25 120,45 140,30 160,40"
-                              fill="none"
-                              stroke="url(#heartGradient)"
-                              strokeWidth="2.5"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[#5B7FFF] text-2xl font-outfit font-bold">
-                              {activityStats.heartRate}
+                      {/* Volume */}
+                      <ActivityCard title="שינוי משקל (14 ימים)" delay={300}>
+                        {dashboardStats.latestWeight === null ? (
+                          <div className="text-[#9CA3AF] text-sm font-outfit text-center">
+                            אין נתוני משקל
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-white text-3xl font-outfit font-bold">
+                              {dashboardStats.latestWeight.toFixed(1)}
                             </span>
-                            <span className="text-[#9CA3AF] text-xs font-outfit">
-                              פעימות לדקה
+                            <span className="text-[#9CA3AF] text-sm font-outfit">
+                              ק״ג נוכחי
+                            </span>
+                            <span
+                              className={`text-sm font-outfit font-semibold ${
+                                (dashboardStats.weightChange || 0) > 0
+                                  ? 'text-[#22c55e]'
+                                  : (dashboardStats.weightChange || 0) < 0
+                                  ? 'text-[#ef4444]'
+                                  : 'text-[#9CA3AF]'
+                              }`}
+                            >
+                              {dashboardStats.weightChange !== null
+                                ? `${dashboardStats.weightChange > 0 ? '+' : ''}${dashboardStats.weightChange.toFixed(1)} ק״ג / 14 ימים`
+                                : 'אין מגמה'}
                             </span>
                           </div>
-                        </div>
+                        )}
                       </ActivityCard>
                     </div>
                   </div>
-
-                  {/* Weekly Goal Progress */}
-                  <div className="w-full flex flex-col gap-3 slide-up" style={{ animationDelay: '500ms' }}>
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-white text-base font-outfit font-medium">יעד שבועי</h3>
-                      <span className="text-[#5B7FFF] text-sm font-outfit font-semibold">{activityStats.weeklyGoal}%</span>
-                    </div>
-                    <div className="relative w-full h-3 bg-[#2D3142] rounded-full overflow-hidden"
-                      style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)' }}
-                    >
-                      <div 
-                        className="absolute left-0 top-0 h-full bg-gradient-to-r from-[#5B7FFF] to-[#4A5FCC] rounded-full transition-all duration-1000 ease-out"
-                        style={{ 
-                          width: `${activityStats.weeklyGoal}%`,
-                          boxShadow: '0 0 12px rgba(91, 127, 255, 0.6)'
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Achievements */}
-                  <div className="w-full flex flex-col gap-4 slide-up" style={{ animationDelay: '600ms' }}>
-                    <h2 className="text-white text-lg font-outfit font-semibold">
-                      ההישגים שלך
-                    </h2>
-                    <div className="grid grid-cols-4 gap-3">
-                      <AchievementBadge icon={Trophy} label="100 אימונים" delay={100} />
-                      <AchievementBadge icon={Zap} label="7 ימים רצוף" delay={200} />
-                      <AchievementBadge icon={Target} label="יעד חודשי" delay={300} />
-                      <AchievementBadge icon={Calendar} label="30 יום" delay={400} />
-                    </div>
-                  </div>
-
+                  
                   {/* Popular Workouts */}
                   <div className="w-full flex flex-col gap-4 slide-up" style={{ animationDelay: '700ms' }}>
                     <h2 className="text-white text-lg font-outfit font-semibold">
@@ -789,22 +760,22 @@ export default function TraineeDashboard() {
                           variant="horizontal"
                         />
                       ))}
+                      </div>
                     </div>
-                  </div>
 
                   {/* Today's Plan */}
                   <div className="w-full flex flex-col gap-4 slide-up" style={{ animationDelay: '800ms' }}>
                     <h2 className="text-white text-lg font-outfit font-semibold">
                       התוכנית של היום
-                    </h2>
+                </h2>
                     {todayRoutine ? (
                       (() => {
                         const difficulty = getDifficultyInfo(todayRoutine.letter || "C");
                         const progress = calculateRoutineProgress(todayRoutine.id);
                         const routineName = todayRoutine.name || `אימון ${todayRoutine.letter}`;
                         const imageIndex = routines.findIndex(r => r.id === todayRoutine.id) % workoutImages.length;
-                        
-                        return (
+                            
+                            return (
                           <Link
                             href={`/trainee/workout?routine=${todayRoutine.id}`}
                             className="w-full bg-[#2D3142] rounded-2xl p-3 flex gap-4 hover-lift transition-all group"
@@ -830,9 +801,9 @@ export default function TraineeDashboard() {
                                 >
                                   <span className="text-white text-xs font-outfit font-medium">
                                     {difficulty.label}
-                                  </span>
-                                </div>
-                              </div>
+                                              </span>
+                                          </div>
+                                          </div>
                               {/* Progress Bar */}
                               <div className="relative w-full h-8 bg-[#4A4E69] rounded-lg overflow-hidden"
                                 style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)' }}
@@ -844,9 +815,9 @@ export default function TraineeDashboard() {
                                   {progress > 0 && (
                                     <span className="text-[#1A1D2E] text-sm font-outfit font-semibold">
                                       {progress}%
-                                    </span>
-                                  )}
-                                </div>
+                                        </span>
+                                      )}
+                                  </div>
                               </div>
                             </div>
                           </Link>
@@ -855,9 +826,9 @@ export default function TraineeDashboard() {
                     ) : (
                       <div className="w-full bg-[#2D3142] rounded-2xl p-6 flex items-center justify-center glass-effect">
                         <p className="text-[#9CA3AF] text-sm">אין תוכנית להיום</p>
-                      </div>
+                        </div>
                     )}
-                  </div>
+                </div>
                 </>
               ) : (
                 /* My Workouts Tab */
@@ -868,7 +839,7 @@ export default function TraineeDashboard() {
                     const routineName = routine.name || `אימון ${routine.letter}`;
                     
                     return (
-                      <Link
+                      <Link 
                         key={routine.id}
                         href={`/trainee/workout?routine=${routine.id}`}
                         className="w-full h-[220px] rounded-2xl relative overflow-hidden group slide-up"
@@ -900,20 +871,20 @@ export default function TraineeDashboard() {
                             background: 'radial-gradient(circle at 50% 100%, rgba(91, 127, 255, 0.3) 0%, transparent 70%)'
                           }}
                         />
-                        
-                        {/* Content */}
+
+              {/* Content */}
                         <div className="relative z-10 h-full flex flex-col justify-end p-5">
                           <div className="flex flex-col gap-3">
                             <h3 className="text-white text-2xl font-outfit font-bold transition-transform duration-300 group-hover:translate-x-2">
                               {routineName}
-                            </h3>
+                                </h3>
                             <div className={`inline-flex items-center justify-center ${difficulty.color} rounded-lg px-3 py-1.5 w-fit transition-all duration-300 group-hover:scale-105`}
                               style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)' }}
                             >
                               <span className="text-white text-xs font-outfit font-medium">
                                 {difficulty.label}
                               </span>
-                            </div>
+                              </div>
                             {/* Progress Bar */}
                             <div className="relative w-full h-8 bg-[#4A4E69] rounded-lg overflow-hidden"
                               style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)' }}
@@ -934,9 +905,9 @@ export default function TraineeDashboard() {
                                   style={{ width: `${100 - progress}%`, marginLeft: `${progress}%` }}
                                 />
                               )}
-                            </div>
-                          </div>
-                        </div>
+                                    </div>
+                                      </div>
+                                      </div>
                       </Link>
                     );
                   }) : (
@@ -944,13 +915,13 @@ export default function TraineeDashboard() {
                       <p className="text-[#9CA3AF] text-sm">
                         {searchQuery ? "לא נמצאו תוצאות" : "אין אימונים זמינים"}
                       </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+                                          </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                            </div>
+                  </div>
 
         {/* Bottom Navigation */}
         <div className="fixed bottom-0 left-0 right-0 bg-[#1A1D2E] border-t border-[#2D3142]"
@@ -965,7 +936,7 @@ export default function TraineeDashboard() {
                 style={{ boxShadow: '0 4px 16px rgba(91, 127, 255, 0.4)' }}
               >
                 <Home className="w-6 h-6 text-white" />
-              </div>
+                      </div>
             </button>
             <button className="flex flex-col items-center justify-center gap-1 group transition-all duration-300 hover:scale-110">
               <TrendingUp className="w-7 h-7 text-[#9CA3AF] group-hover:text-white transition-colors" />
@@ -979,9 +950,9 @@ export default function TraineeDashboard() {
             <button className="flex flex-col items-center justify-center gap-1 group transition-all duration-300 hover:scale-110">
               <User className="w-7 h-7 text-[#9CA3AF] group-hover:text-white transition-colors" />
             </button>
-          </div>
-        </div>
-      </div>
-    </>
+                        </div>
+                      </div>
+              </div>
+            </>
   );
 }
