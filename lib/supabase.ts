@@ -40,14 +40,13 @@ export const supabase = createBrowserClient(
   }
 );
 
-// For server-side usage (API routes, server components)
-export function createServerSupabaseClient() {
+// For server-side usage (route handlers, server components)
+// Dynamically import the server helper to avoid pulling next/headers into client bundles
+export async function createServerSupabaseClient() {
   if (typeof window !== 'undefined') {
-    // Client-side - use browser client
     return supabase;
   }
 
-  // Server-side - this would need cookies, but for now return the browser client
-  // In a real app, you'd use createServerClient with cookies here
-  return supabase;
+  const { createServerSupabaseClient: create } = await import('./supabase-server');
+  return create();
 }
