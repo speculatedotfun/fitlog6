@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Settings, Calendar, Mail, Dumbbell, TrendingUp, Eye } from "lucide-react";
+import { Settings, Calendar, Mail, Dumbbell, TrendingUp, Eye, Target, Edit } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TraineeCardProps {
   trainee: {
@@ -84,15 +85,28 @@ export function TraineeCard({ trainee }: TraineeCardProps) {
           
           {/* Action Buttons */}
           <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
-            {trainee.planActive && (
-              <Link href={`/trainer/workout-plans/${trainee.id}/edit`} className="flex-1 sm:flex-none">
-                <Button className="w-full sm:w-auto h-10 sm:h-11 px-4 sm:px-5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-bold rounded-lg sm:rounded-xl shadow-sm transition-all active:scale-95 text-sm sm:text-base">
-                  <Eye className="ml-1.5 sm:ml-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">צפה בתוכנית</span>
-                  <span className="sm:hidden">תוכנית</span>
-                </Button>
-              </Link>
-            )}
+            <Link href={`/trainer/workout-plans/${trainee.id}/edit`} className="flex-1 sm:flex-none">
+              <Button className={cn(
+                "w-full sm:w-auto h-10 sm:h-11 px-4 sm:px-5 text-white font-bold rounded-lg sm:rounded-xl shadow-sm transition-all active:scale-95 text-sm sm:text-base",
+                trainee.planActive 
+                  ? "bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                  : "bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
+              )}>
+                {trainee.planActive ? (
+                  <>
+                    <Edit className="ml-1.5 sm:ml-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">ערוך תוכנית</span>
+                    <span className="sm:hidden">ערוך</span>
+                  </>
+                ) : (
+                  <>
+                    <Target className="ml-1.5 sm:ml-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">צור תוכנית</span>
+                    <span className="sm:hidden">צור</span>
+                  </>
+                )}
+              </Button>
+            </Link>
             <Link href={`/trainer/trainee/${trainee.id}`} className="flex-1 sm:flex-none">
               <Button className="w-full sm:w-auto h-10 sm:h-11 px-4 sm:px-5 bg-white dark:bg-slate-900/50 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-900 dark:text-white font-bold rounded-lg sm:rounded-xl border border-gray-200 dark:border-slate-800 hover:border-blue-600 dark:hover:border-blue-500 transition-all active:scale-95 text-sm sm:text-base">
                 <Settings className="ml-1.5 sm:ml-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />

@@ -695,14 +695,26 @@ function TraineesManagementContent() {
                         פרופיל
                       </button>
                     </Link>
-                    {trainee.planActive && (
-                      <Link href={`/trainer/workout-plans/${trainee.id}/edit`} className="flex-1">
-                        <button className="w-full bg-[#1A1D2E] hover:bg-[#3D4058] text-white px-4 py-2 rounded-lg font-outfit font-semibold text-sm transition-all flex items-center justify-center gap-2">
-                          <Edit className="h-4 w-4" />
-                          תוכנית
-                        </button>
-                      </Link>
-                    )}
+                    <Link href={`/trainer/workout-plans/${trainee.id}/edit`} className="flex-1">
+                      <button className={cn(
+                        "w-full text-white px-4 py-2 rounded-lg font-outfit font-semibold text-sm transition-all flex items-center justify-center gap-2",
+                        trainee.planActive 
+                          ? "bg-[#1A1D2E] hover:bg-[#3D4058]" 
+                          : "bg-[#5B7FFF] hover:bg-[#6B8EFF]"
+                      )}>
+                        {trainee.planActive ? (
+                          <>
+                            <Edit className="h-4 w-4" />
+                            ערוך תוכנית
+                          </>
+                        ) : (
+                          <>
+                            <Target className="h-4 w-4" />
+                            צור תוכנית
+                          </>
+                        )}
+                      </button>
+                    </Link>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="bg-[#1A1D2E] hover:bg-[#3D4058] text-white w-10 h-10 rounded-lg transition-all flex items-center justify-center">

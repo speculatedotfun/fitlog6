@@ -10,3 +10,4 @@ ADD COLUMN IF NOT EXISTS profile_image_url TEXT;
 -- Allow authenticated users to upload their own profile images
 -- Allow public read access to profile images
 
+

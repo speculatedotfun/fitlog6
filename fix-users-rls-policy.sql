@@ -20,3 +20,4 @@ WITH CHECK (auth.uid() = id);
 -- Verify RLS is enabled
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
+
